@@ -1,0 +1,228 @@
+{
+
+  "DocumentTitle": "19_Wickham_Rd_25_deyan.marzev",
+  "ExportedAtUtc": "2025-12-28T19:48:44.9241662Z",
+  "Materials": [
+    {
+      "Id": 426175,
+      "UniqueId": "04e42ad9-bbb9-4762-9d08-e5f061e9c758-000680bf",
+      "Name": "Brickwork",
+      "Color": {
+        "Red": 192,
+        "Green": 192,
+        "Blue": 192
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2366742,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00241d16",
+      "Name": "Door - Architrave",
+      "Color": {
+        "Red": 154,
+        "Green": 90,
+        "Blue": 5
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2360186,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-0024037a",
+      "Name": "Door - Frame/Mullion",
+      "Color": {
+        "Red": 212,
+        "Green": 179,
+        "Blue": 113
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2360185,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00240379",
+      "Name": "Door - Glazing",
+      "Color": {
+        "Red": 0,
+        "Green": 0,
+        "Blue": 255
+      },
+      "Transparency": 75
+    },
+    {
+      "Id": 2360188,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-0024037c",
+      "Name": "Door - Handle",
+      "Color": {
+        "Red": 246,
+        "Green": 240,
+        "Blue": 166
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2360187,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-0024037b",
+      "Name": "Door - Panel",
+      "Color": {
+        "Red": 154,
+        "Green": 90,
+        "Blue": 5
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2363721,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00241149",
+      "Name": "Door Handle",
+      "Color": {
+        "Red": 247,
+        "Green": 247,
+        "Blue": 247
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2366743,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00241d17",
+      "Name": "Door Handle - Aluminium",
+      "Color": {
+        "Red": 247,
+        "Green": 247,
+        "Blue": 247
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2352711,
+      "UniqueId": "8203def7-a900-40d1-b9e4-077a22ac7ded-0023e647",
+      "Name": "Electrical Analytical Loads",
+      "Color": {
+        "Red": 94,
+        "Green": 94,
+        "Blue": 205
+      },
+      "Transparency": 50
+    },
+    {
+      "Id": 2265915,
+      "UniqueId": "f760839f-7960-44e0-ac2c-b86d054aad6a-0022933b",
+      "Name": "Glass",
+      "Color": {
+        "Red": 0,
+        "Green": 0,
+        "Blue": 255
+      },
+      "Transparency": 75
+    },
+    {
+      "Id": 2371956,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00243174",
+      "Name": "Metal - Chrome",
+      "Color": {
+        "Red": 247,
+        "Green": 247,
+        "Blue": 247
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2426034,
+      "UniqueId": "50b5d6aa-7620-4c58-96a8-8f8edf4ba3a1-002504b2",
+      "Name": "Plasterboard",
+      "Color": {
+        "Red": 255,
+        "Green": 255,
+        "Blue": 255
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2371955,
+      "UniqueId": "1703610e-c2e7-40c1-af36-8064e5d7f7be-00243173",
+      "Name": "Porcelain",
+      "Color": {
+        "Red": 249,
+        "Green": 249,
+        "Blue": 249
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2265793,
+      "UniqueId": "beaeac24-bf1e-4595-86a8-8f4b47012443-002292c1",
+      "Name": "Timber",
+      "Color": {
+        "Red": 192,
+        "Green": 192,
+        "Blue": 192
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2532920,
+      "UniqueId": "667cb311-c282-40d8-a188-4940970c0f5c-0026a638",
+      "Name": "White_Plastic",
+      "Color": {
+        "Red": 255,
+        "Green": 255,
+        "Blue": 255
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2343922,
+      "UniqueId": "13caf5bd-db29-4ca5-925e-9dc105e51fd7-0023c3f2",
+      "Name": "Wood - Dimensional Lumber",
+      "Color": {
+        "Red": 209,
+        "Green": 175,
+        "Blue": 106
+      },
+      "Transparency": 0
+    },
+    {
+      "Id": 2381930,
+      "UniqueId": "a963cf75-8cd0-450c-96fc-81a1e5ba99c0-0024586a",
+      "Name": "Wood - White",
+      "Color": {
+        "Red": 255,
+        "Green": 255,
+        "Blue": 255
+      },
+      "Transparency": 0
+    }
+  ],
+  "Elements": [
+    {
+      "Id": 2546624,
+      "UniqueId": "64db4e66-bcef-45b5-b7f4-a620b6436eba-0026dbc0",
+      "Category": "Electrical Equipment",
+      "FamilyName": "ESP32",
+      "TypeName": "ESP32",
+      "SoftwareOriginator": "Revit_2025",
+      "Material": "no material",
+      "Materials": [],
+      "SubElements": [],
+      "Geometry": {
+        "Vertices": [4.3611619972229008,29.059695996093751,0.92249470939636236,4.3611619972229008,28.903375305175782,0.92249470939636236,4.6548027946472175,28.903375305175782,0.92249470939636236,4.6548027946472175,29.059695996093751,0.92249470939636236,4.6548027946472175,29.059695996093751,0.6016538643836975,4.6548027946472175,28.903375305175782,0.6016538643836975,4.3611619972229008,28.903375305175782,0.6016538643836975,4.3611619972229008,29.059695996093751,0.6016538643836975],
+        "Indices": [0,1,2,2,3,0,4,5,6,6,7,4,2,1,6,6,5,2,3,2,5,5,4,3,0,3,4,4,7,0,1,0,7,7,6,1],
+        "TriangleMaterialNames": ["","","","","","","","","","","",""]
+      }
+    },
+    {
+      "Id": 2546880,
+      "UniqueId": "64db4e66-bcef-45b5-b7f4-a620b6436eba-0026dcc0",
+      "Category": "Electrical Equipment",
+      "FamilyName": "ESP1",
+      "TypeName": "ESP32",
+      "SoftwareOriginator": "Revit_2025",
+      "Material": "no material",
+      "Materials": [],
+      "SubElements": [],
+      "Geometry": {
+        "Vertices": [7.366153285217286,36.381670001220705,0.92249470939636236,7.366153285217286,36.086741491699222,0.92249470939636236,7.4723380828857424,36.381670001220705,0.92249470939636236,7.4723380828857424,36.086741491699222,0.92249470939636236,7.4723380828857424,36.381670001220705,0.6016538643836975,7.4723380828857424,36.086741491699222,0.6016538643836975,7.366153285217286,36.381670001220705,0.6016538643836975,7.366153285217286,36.086741491699222,0.6016538643836975],
+        "Indices": [0,1,2,3,2,1,4,5,6,7,6,5,3,1,5,7,5,1,2,3,5,5,4,2,0,2,6,4,6,2,1,0,6,6,7,1],
+        "TriangleMaterialNames": ["","","","","","","","","","","",""]
+      }
+    }
+  ]
+}

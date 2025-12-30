@@ -1,0 +1,20 @@
+{
+  "name": "house-viewer",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "start": "nuxt start",
+    "lint": "echo 'add linter'"
+  },
+  "dependencies": {
+    "nanoid": "^5.0.7",
+    "three": "^0.162.0"
+  },
+  "devDependencies": {
+    "nuxt": "^3.11.2",
+    "@types/three": "^0.162.0",
+    "typescript": "^5.4.5"
+  }
+}
