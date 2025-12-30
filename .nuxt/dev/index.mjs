@@ -1,11 +1,11 @@
 import process from 'node:process';globalThis._importMeta_={url:import.meta.url,env:process.env};import { tmpdir } from 'node:os';
 import { Server } from 'node:http';
-import path, { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import crypto$1 from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/h3/dist/index.mjs';
 import { escapeHtml } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@vue/shared/dist/shared.cjs.js';
-import { promises } from 'node:fs';
+import { sql } from '@vercel/postgres';
 import { nanoid } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/nanoid/index.js';
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/vue-bundle-renderer/dist/runtime.mjs';
 import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/ufo/dist/index.mjs';
@@ -34,6 +34,7 @@ import { SourceMapConsumer } from 'file://C:/Users/deyan.marzev/source/repos/Dey
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getContext } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/unctx/dist/index.mjs';
 import { captureRawStackTrace, parseRawStackTrace } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/errx/dist/index.js';
+import { promises } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname as dirname$1, resolve as resolve$1 } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/pathe/dist/index.mjs';
 import { walkResolver } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/unhead/dist/utils.mjs';
@@ -1451,7 +1452,22 @@ const plugins = [
   _qYxMXPFhsXdyEx09HDOktguT_RK7yZFNF2x9pr8iRDY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"18e87-OlgYryYMPlkc+ogiKcpgb3bByEQ\"",
+    "mtime": "2025-12-30T11:53:30.536Z",
+    "size": 102023,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5e78a-PacrckbOUKrW3A10vK+EAgKb3HI\"",
+    "mtime": "2025-12-30T11:53:30.536Z",
+    "size": 386954,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -2290,30 +2306,59 @@ const login_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: login_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const dataDir$1 = path.resolve(process.cwd(), "server/data");
-const dataFile$1 = path.join(dataDir$1, "elements.json");
-const ensureDataFile$1 = async () => {
-  await promises.mkdir(dataDir$1, { recursive: true });
-  try {
-    await promises.access(dataFile$1);
-  } catch {
-    await promises.writeFile(dataFile$1, "[]", "utf-8");
+let schemaReady = null;
+const ensureSchema = async () => {
+  if (schemaReady) return schemaReady;
+  const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error("Database URL missing. Set POSTGRES_URL or DATABASE_URL.");
   }
+  schemaReady = (async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS elements (
+        guid TEXT PRIMARY KEY,
+        revit_id BIGINT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        material TEXT NOT NULL,
+        year_added TEXT NOT NULL DEFAULT '',
+        software_originator TEXT NOT NULL DEFAULT '',
+        comment TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+      );
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS items (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL DEFAULT '',
+        date_added TEXT NOT NULL,
+        rooms JSONB NOT NULL,
+        position JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+      );
+    `;
+  })();
+  return schemaReady;
 };
-const readElements = async () => {
-  await ensureDataFile$1();
-  try {
-    const raw = await promises.readFile(dataFile$1, "utf-8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    console.error("Failed to read elements file", err);
-    return [];
-  }
-};
-const writeElements = async (elements) => {
-  await ensureDataFile$1();
-  await promises.writeFile(dataFile$1, JSON.stringify(elements, null, 2), "utf-8");
+
+const toElementRecord = (row) => {
+  var _a, _b, _c;
+  return {
+    guid: String(row.guid),
+    revitId: Number(row.revit_id),
+    name: row.name || "",
+    type: row.type || "",
+    material: row.material || "",
+    yearAdded: (_a = row.year_added) != null ? _a : "",
+    softwareOriginator: (_b = row.software_originator) != null ? _b : "",
+    comment: (_c = row.comment) != null ? _c : "",
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : void 0
+  };
 };
 const normalizeText = (value) => typeof value === "string" ? value.trim() : "";
 const normalizeSyncInput = (input) => ({
@@ -2331,63 +2376,70 @@ const normalizeUpdateInput = (input) => ({
 });
 const elementStore = {
   async list() {
-    return readElements();
+    await ensureSchema();
+    const { rows } = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
+    return rows.map(toElementRecord);
   },
   async sync(inputs) {
-    const elements = await readElements();
-    const byGuid = new Map(elements.map((element) => [element.guid, element]));
+    await ensureSchema();
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    const updated = [];
-    inputs.forEach((input) => {
-      const normalized = normalizeSyncInput(input);
-      if (!normalized.guid) return;
-      const existing = byGuid.get(normalized.guid);
-      const nextSoftwareOriginator = (existing == null ? void 0 : existing.softwareOriginator) || normalized.softwareOriginator || "";
-      if (existing) {
-        const changed = existing.revitId !== normalized.revitId || existing.name !== normalized.name || existing.type !== normalized.type || existing.material !== normalized.material || existing.softwareOriginator !== nextSoftwareOriginator;
-        const record = {
-          ...existing,
-          revitId: normalized.revitId || existing.revitId,
-          name: normalized.name,
-          type: normalized.type,
-          material: normalized.material,
-          softwareOriginator: nextSoftwareOriginator,
-          updatedAt: changed ? now : existing.updatedAt
-        };
-        byGuid.set(record.guid, record);
-        updated.push(record);
-      } else {
-        const record = {
-          ...normalized,
-          yearAdded: "",
-          softwareOriginator: normalized.softwareOriginator || "",
-          comment: "",
-          createdAt: now
-        };
-        byGuid.set(record.guid, record);
-        updated.push(record);
+    const normalizedInputs = inputs.map(normalizeSyncInput).filter((input) => !!input.guid);
+    const results = [];
+    for (const record of normalizedInputs) {
+      const softwareOriginator = normalizeText(record.softwareOriginator) || "";
+      const { rows } = await sql`
+        INSERT INTO elements (
+          guid,
+          revit_id,
+          name,
+          type,
+          material,
+          software_originator,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${record.guid},
+          ${record.revitId},
+          ${record.name},
+          ${record.type},
+          ${record.material},
+          ${softwareOriginator},
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (guid)
+        DO UPDATE SET
+          revit_id = EXCLUDED.revit_id,
+          name = EXCLUDED.name,
+          type = EXCLUDED.type,
+          material = EXCLUDED.material,
+          software_originator = COALESCE(NULLIF(EXCLUDED.software_originator, ''), elements.software_originator),
+          updated_at = ${now}
+        RETURNING *;
+      `;
+      if (rows[0]) {
+        results.push(toElementRecord(rows[0]));
       }
-    });
-    await writeElements(Array.from(byGuid.values()));
-    return updated;
+    }
+    return results;
   },
   async update(guid, input) {
     var _a, _b, _c;
-    const elements = await readElements();
-    const idx = elements.findIndex((element) => element.guid === guid);
-    if (idx === -1) return null;
-    const existing = elements[idx];
+    await ensureSchema();
     const normalized = normalizeUpdateInput(input);
-    const updated = {
-      ...existing,
-      yearAdded: (_a = normalized.yearAdded) != null ? _a : existing.yearAdded,
-      softwareOriginator: (_b = normalized.softwareOriginator) != null ? _b : existing.softwareOriginator,
-      comment: (_c = normalized.comment) != null ? _c : existing.comment,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    elements[idx] = updated;
-    await writeElements(elements);
-    return updated;
+    const { rows } = await sql`
+      UPDATE elements
+      SET
+        year_added = COALESCE(${(_a = normalized.yearAdded) != null ? _a : null}, year_added),
+        software_originator = COALESCE(${(_b = normalized.softwareOriginator) != null ? _b : null}, software_originator),
+        comment = COALESCE(${(_c = normalized.comment) != null ? _c : null}, comment),
+        updated_at = ${(/* @__PURE__ */ new Date()).toISOString()}
+      WHERE guid = ${guid}
+      RETURNING *;
+    `;
+    if (!rows[0]) return null;
+    return toElementRecord(rows[0]);
   }
 };
 
@@ -2441,37 +2493,28 @@ const sync_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: sync_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const dataDir = path.resolve(process.cwd(), "server/data");
-const dataFile = path.join(dataDir, "items.json");
-const ensureDataFile = async () => {
-  await promises.mkdir(dataDir, { recursive: true });
-  try {
-    await promises.access(dataFile);
-  } catch {
-    await promises.writeFile(dataFile, "[]", "utf-8");
-  }
-};
-const readItems = async () => {
-  await ensureDataFile();
-  try {
-    const raw = await promises.readFile(dataFile, "utf-8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    console.error("Failed to read items file", err);
-    return [];
-  }
-};
-const writeItems = async (items) => {
-  await ensureDataFile();
-  await promises.writeFile(dataFile, JSON.stringify(items, null, 2), "utf-8");
+const toItemRecord = (row) => {
+  var _a, _b;
+  return {
+    id: String(row.id),
+    name: row.name || "",
+    description: row.description || "",
+    url: row.url || "",
+    dateAdded: row.date_added || "",
+    rooms: Array.isArray(row.rooms) ? row.rooms : typeof row.rooms === "string" ? JSON.parse(row.rooms) : (_a = row.rooms) != null ? _a : [],
+    position: row.position && typeof row.position === "string" ? JSON.parse(row.position) : (_b = row.position) != null ? _b : { x: 0, y: 0, z: 0 },
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : void 0
+  };
 };
 const itemStore = {
   async list() {
-    return readItems();
+    await ensureSchema();
+    const { rows } = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
+    return rows.map(toItemRecord);
   },
   async add(input) {
-    const items = await readItems();
+    await ensureSchema();
     const record = {
       id: nanoid(10),
       name: input.name,
@@ -2482,40 +2525,58 @@ const itemStore = {
       position: input.position,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    items.push(record);
-    await writeItems(items);
-    return record;
+    const { rows } = await sql`
+      INSERT INTO items (
+        id,
+        name,
+        description,
+        url,
+        date_added,
+        rooms,
+        position,
+        created_at
+      )
+      VALUES (
+        ${record.id},
+        ${record.name},
+        ${record.description},
+        ${record.url},
+        ${record.dateAdded},
+        ${JSON.stringify(record.rooms)}::jsonb,
+        ${JSON.stringify(record.position)}::jsonb,
+        ${record.createdAt}
+      )
+      RETURNING *;
+    `;
+    return rows[0] ? toItemRecord(rows[0]) : record;
   },
   async update(id, input) {
-    var _a, _b, _c, _d, _e, _f;
-    const items = await readItems();
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx === -1) return null;
-    const existing = items[idx];
-    const updated = {
-      ...existing,
-      name: (_a = input.name) != null ? _a : existing.name,
-      description: (_b = input.description) != null ? _b : existing.description,
-      url: (_c = input.url) != null ? _c : existing.url,
-      dateAdded: (_d = input.dateAdded) != null ? _d : existing.dateAdded,
-      rooms: (_e = input.rooms) != null ? _e : existing.rooms,
-      position: (_f = input.position) != null ? _f : existing.position,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    items[idx] = updated;
-    await writeItems(items);
-    return updated;
+    var _a, _b, _c, _d;
+    await ensureSchema();
+    const { rows } = await sql`
+      UPDATE items
+      SET
+        name = COALESCE(${(_a = input.name) != null ? _a : null}, name),
+        description = COALESCE(${(_b = input.description) != null ? _b : null}, description),
+        url = COALESCE(${(_c = input.url) != null ? _c : null}, url),
+        date_added = COALESCE(${(_d = input.dateAdded) != null ? _d : null}, date_added),
+        rooms = COALESCE(${input.rooms ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
+        position = COALESCE(${input.position ? JSON.stringify(input.position) : null}::jsonb, position),
+        updated_at = ${(/* @__PURE__ */ new Date()).toISOString()}
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+    if (!rows[0]) return null;
+    return toItemRecord(rows[0]);
   },
   async remove(id) {
-    const items = await readItems();
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx === -1) return false;
-    items.splice(idx, 1);
-    await writeItems(items);
-    return true;
+    await ensureSchema();
+    const { rowCount } = await sql`DELETE FROM items WHERE id = ${id};`;
+    return rowCount > 0;
   },
   async clear() {
-    await writeItems([]);
+    await ensureSchema();
+    await sql`DELETE FROM items;`;
   }
 };
 

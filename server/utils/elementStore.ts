@@ -1,35 +1,18 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import type { ElementRecord, ElementSyncInput, ElementUpdateInput } from '../types/elements';
+import { ensureSchema, sql } from './db';
 
-const dataDir = path.resolve(process.cwd(), 'server/data');
-const dataFile = path.join(dataDir, 'elements.json');
-
-const ensureDataFile = async () => {
-  await fs.mkdir(dataDir, { recursive: true });
-  try {
-    await fs.access(dataFile);
-  } catch {
-    await fs.writeFile(dataFile, '[]', 'utf-8');
-  }
-};
-
-const readElements = async (): Promise<ElementRecord[]> => {
-  await ensureDataFile();
-  try {
-    const raw = await fs.readFile(dataFile, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    console.error('Failed to read elements file', err);
-    return [];
-  }
-};
-
-const writeElements = async (elements: ElementRecord[]) => {
-  await ensureDataFile();
-  await fs.writeFile(dataFile, JSON.stringify(elements, null, 2), 'utf-8');
-};
+const toElementRecord = (row: any): ElementRecord => ({
+  guid: String(row.guid),
+  revitId: Number(row.revit_id),
+  name: row.name || '',
+  type: row.type || '',
+  material: row.material || '',
+  yearAdded: row.year_added ?? '',
+  softwareOriginator: row.software_originator ?? '',
+  comment: row.comment ?? '',
+  createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+  updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
+});
 
 const normalizeText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -52,74 +35,72 @@ const normalizeUpdateInput = (input: ElementUpdateInput): ElementUpdateInput => 
 
 export const elementStore = {
   async list() {
-    return readElements();
+    await ensureSchema();
+    const { rows } = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
+    return rows.map(toElementRecord);
   },
 
   async sync(inputs: ElementSyncInput[]) {
-    const elements = await readElements();
-    const byGuid = new Map(elements.map((element) => [element.guid, element]));
+    await ensureSchema();
     const now = new Date().toISOString();
-    const updated: ElementRecord[] = [];
-
-    inputs.forEach((input) => {
-      const normalized = normalizeSyncInput(input);
-      if (!normalized.guid) return;
-
-      const existing = byGuid.get(normalized.guid);
-      const nextSoftwareOriginator =
-        existing?.softwareOriginator || normalized.softwareOriginator || '';
-      if (existing) {
-        const changed =
-          existing.revitId !== normalized.revitId ||
-          existing.name !== normalized.name ||
-          existing.type !== normalized.type ||
-          existing.material !== normalized.material ||
-          existing.softwareOriginator !== nextSoftwareOriginator;
-        const record: ElementRecord = {
-          ...existing,
-          revitId: normalized.revitId || existing.revitId,
-          name: normalized.name,
-          type: normalized.type,
-          material: normalized.material,
-          softwareOriginator: nextSoftwareOriginator,
-          updatedAt: changed ? now : existing.updatedAt
-        };
-        byGuid.set(record.guid, record);
-        updated.push(record);
-      } else {
-        const record: ElementRecord = {
-          ...normalized,
-          yearAdded: '',
-          softwareOriginator: normalized.softwareOriginator || '',
-          comment: '',
-          createdAt: now
-        };
-        byGuid.set(record.guid, record);
-        updated.push(record);
+    const normalizedInputs = inputs
+      .map(normalizeSyncInput)
+      .filter((input) => !!input.guid);
+    const results: ElementRecord[] = [];
+    for (const record of normalizedInputs) {
+      const softwareOriginator = normalizeText(record.softwareOriginator) || '';
+      const { rows } = await sql`
+        INSERT INTO elements (
+          guid,
+          revit_id,
+          name,
+          type,
+          material,
+          software_originator,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${record.guid},
+          ${record.revitId},
+          ${record.name},
+          ${record.type},
+          ${record.material},
+          ${softwareOriginator},
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (guid)
+        DO UPDATE SET
+          revit_id = EXCLUDED.revit_id,
+          name = EXCLUDED.name,
+          type = EXCLUDED.type,
+          material = EXCLUDED.material,
+          software_originator = COALESCE(NULLIF(EXCLUDED.software_originator, ''), elements.software_originator),
+          updated_at = ${now}
+        RETURNING *;
+      `;
+      if (rows[0]) {
+        results.push(toElementRecord(rows[0]));
       }
-    });
-
-    await writeElements(Array.from(byGuid.values()));
-    return updated;
+    }
+    return results;
   },
 
   async update(guid: string, input: ElementUpdateInput) {
-    const elements = await readElements();
-    const idx = elements.findIndex((element) => element.guid === guid);
-    if (idx === -1) return null;
-
-    const existing = elements[idx];
+    await ensureSchema();
     const normalized = normalizeUpdateInput(input);
-    const updated: ElementRecord = {
-      ...existing,
-      yearAdded: normalized.yearAdded ?? existing.yearAdded,
-      softwareOriginator: normalized.softwareOriginator ?? existing.softwareOriginator,
-      comment: normalized.comment ?? existing.comment,
-      updatedAt: new Date().toISOString()
-    };
-
-    elements[idx] = updated;
-    await writeElements(elements);
-    return updated;
+    const { rows } = await sql`
+      UPDATE elements
+      SET
+        year_added = COALESCE(${normalized.yearAdded ?? null}, year_added),
+        software_originator = COALESCE(${normalized.softwareOriginator ?? null}, software_originator),
+        comment = COALESCE(${normalized.comment ?? null}, comment),
+        updated_at = ${new Date().toISOString()}
+      WHERE guid = ${guid}
+      RETURNING *;
+    `;
+    if (!rows[0]) return null;
+    return toElementRecord(rows[0]);
   }
 };

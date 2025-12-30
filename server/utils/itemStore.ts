@@ -1,44 +1,35 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import { nanoid } from 'nanoid';
 import type { ItemInput, ItemRecord } from '../types/items';
+import { ensureSchema, sql } from './db';
 
-const dataDir = path.resolve(process.cwd(), 'server/data');
-const dataFile = path.join(dataDir, 'items.json');
-
-const ensureDataFile = async () => {
-  await fs.mkdir(dataDir, { recursive: true });
-  try {
-    await fs.access(dataFile);
-  } catch {
-    await fs.writeFile(dataFile, '[]', 'utf-8');
-  }
-};
-
-const readItems = async (): Promise<ItemRecord[]> => {
-  await ensureDataFile();
-  try {
-    const raw = await fs.readFile(dataFile, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
-    console.error('Failed to read items file', err);
-    return [];
-  }
-};
-
-const writeItems = async (items: ItemRecord[]) => {
-  await ensureDataFile();
-  await fs.writeFile(dataFile, JSON.stringify(items, null, 2), 'utf-8');
-};
+const toItemRecord = (row: any): ItemRecord => ({
+  id: String(row.id),
+  name: row.name || '',
+  description: row.description || '',
+  url: row.url || '',
+  dateAdded: row.date_added || '',
+  rooms: Array.isArray(row.rooms)
+    ? row.rooms
+    : typeof row.rooms === 'string'
+      ? JSON.parse(row.rooms)
+      : row.rooms ?? [],
+  position:
+    row.position && typeof row.position === 'string'
+      ? JSON.parse(row.position)
+      : row.position ?? { x: 0, y: 0, z: 0 },
+  createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+  updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
+});
 
 export const itemStore = {
   async list() {
-    return readItems();
+    await ensureSchema();
+    const { rows } = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
+    return rows.map(toItemRecord);
   },
 
   async add(input: ItemInput) {
-    const items = await readItems();
+    await ensureSchema();
     const record: ItemRecord = {
       id: nanoid(10),
       name: input.name,
@@ -49,43 +40,59 @@ export const itemStore = {
       position: input.position,
       createdAt: new Date().toISOString()
     };
-    items.push(record);
-    await writeItems(items);
-    return record;
+    const { rows } = await sql`
+      INSERT INTO items (
+        id,
+        name,
+        description,
+        url,
+        date_added,
+        rooms,
+        position,
+        created_at
+      )
+      VALUES (
+        ${record.id},
+        ${record.name},
+        ${record.description},
+        ${record.url},
+        ${record.dateAdded},
+        ${JSON.stringify(record.rooms)}::jsonb,
+        ${JSON.stringify(record.position)}::jsonb,
+        ${record.createdAt}
+      )
+      RETURNING *;
+    `;
+    return rows[0] ? toItemRecord(rows[0]) : record;
   },
 
   async update(id: string, input: Partial<ItemInput>) {
-    const items = await readItems();
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx === -1) return null;
-
-    const existing = items[idx];
-    const updated: ItemRecord = {
-      ...existing,
-      name: input.name ?? existing.name,
-      description: input.description ?? existing.description,
-      url: input.url ?? existing.url,
-      dateAdded: input.dateAdded ?? existing.dateAdded,
-      rooms: input.rooms ?? existing.rooms,
-      position: input.position ?? existing.position,
-      updatedAt: new Date().toISOString()
-    };
-
-    items[idx] = updated;
-    await writeItems(items);
-    return updated;
+    await ensureSchema();
+    const { rows } = await sql`
+      UPDATE items
+      SET
+        name = COALESCE(${input.name ?? null}, name),
+        description = COALESCE(${input.description ?? null}, description),
+        url = COALESCE(${input.url ?? null}, url),
+        date_added = COALESCE(${input.dateAdded ?? null}, date_added),
+        rooms = COALESCE(${input.rooms ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
+        position = COALESCE(${input.position ? JSON.stringify(input.position) : null}::jsonb, position),
+        updated_at = ${new Date().toISOString()}
+      WHERE id = ${id}
+      RETURNING *;
+    `;
+    if (!rows[0]) return null;
+    return toItemRecord(rows[0]);
   },
 
   async remove(id: string) {
-    const items = await readItems();
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx === -1) return false;
-    items.splice(idx, 1);
-    await writeItems(items);
-    return true;
+    await ensureSchema();
+    const { rowCount } = await sql`DELETE FROM items WHERE id = ${id};`;
+    return rowCount > 0;
   },
 
   async clear() {
-    await writeItems([]);
+    await ensureSchema();
+    await sql`DELETE FROM items;`;
   }
 };

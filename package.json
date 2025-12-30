@@ -9,6 +9,7 @@
     "lint": "echo 'add linter'"
   },
   "dependencies": {
+    "@vercel/postgres": "^0.10.0",
     "nanoid": "^5.0.7",
     "three": "^0.162.0"
   },
