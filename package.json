@@ -15,10 +15,8 @@
   },
   "devDependencies": {
     "nuxt": "^3.11.2",
+    "@nuxt/devtools": "file:vendor/nuxt-devtools-stub",
     "@types/three": "^0.162.0",
     "typescript": "^5.4.5"
-  },
-  "overrides": {
-    "@nuxt/devtools": "file:vendor/nuxt-devtools-stub"
   }
 }
