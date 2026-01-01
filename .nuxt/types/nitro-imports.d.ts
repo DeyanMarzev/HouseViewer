@@ -69,6 +69,7 @@ declare global {
   const getRouterParam: typeof import('../../node_modules/h3').getRouterParam
   const getRouterParams: typeof import('../../node_modules/h3').getRouterParams
   const getSession: typeof import('../../node_modules/h3').getSession
+  const getSql: typeof import('../../server/utils/db').getSql
   const getValidatedQuery: typeof import('../../node_modules/h3').getValidatedQuery
   const getValidatedRouterParams: typeof import('../../node_modules/h3').getValidatedRouterParams
   const handleCacheHeaders: typeof import('../../node_modules/h3').handleCacheHeaders
@@ -114,7 +115,6 @@ declare global {
   const setResponseHeaders: typeof import('../../node_modules/h3').setResponseHeaders
   const setResponseStatus: typeof import('../../node_modules/h3').setResponseStatus
   const splitCookiesString: typeof import('../../node_modules/h3').splitCookiesString
-  const sql: typeof import('../../server/utils/db').sql
   const toEventHandler: typeof import('../../node_modules/h3').toEventHandler
   const toNodeListener: typeof import('../../node_modules/h3').toNodeListener
   const toPlainHandler: typeof import('../../node_modules/h3').toPlainHandler
@@ -147,6 +147,6 @@ export { appendCorsHeaders, appendCorsPreflightHeaders, appendHeader, appendHead
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
 export { createToken, verifyToken, requireAuth } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/auth';
-export { sql, ensureSchema } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/db';
+export { getSql, ensureSchema } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/db';
 export { elementStore } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/elementStore';
 export { itemStore } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/itemStore';

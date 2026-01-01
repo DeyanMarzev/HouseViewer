@@ -1,13 +1,27 @@
-import { sql } from '@vercel/postgres';
+import postgres from 'postgres';
 
+type SqlClient = ReturnType<typeof postgres>;
+
+let sqlClient: SqlClient | null = null;
 let schemaReady: Promise<void> | null = null;
 
-const ensureSchema = async () => {
-  if (schemaReady) return schemaReady;
+const getSql = () => {
+  if (sqlClient) return sqlClient;
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) {
     throw new Error('Database URL missing. Set POSTGRES_URL or DATABASE_URL.');
   }
+  const shouldUseSsl =
+    /sslmode=require/i.test(url) ||
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1';
+  sqlClient = postgres(url, shouldUseSsl ? { ssl: 'require' } : {});
+  return sqlClient;
+};
+
+const ensureSchema = async () => {
+  if (schemaReady) return schemaReady;
+  const sql = getSql();
   schemaReady = (async () => {
     await sql`
       CREATE TABLE IF NOT EXISTS elements (
@@ -40,4 +54,4 @@ const ensureSchema = async () => {
   return schemaReady;
 };
 
-export { sql, ensureSchema };
+export { getSql, ensureSchema };

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import type { ItemInput, ItemRecord } from '../types/items';
-import { ensureSchema, sql } from './db';
+import { ensureSchema, getSql } from './db';
 
 const toItemRecord = (row: any): ItemRecord => ({
   id: String(row.id),
@@ -24,12 +24,14 @@ const toItemRecord = (row: any): ItemRecord => ({
 export const itemStore = {
   async list() {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
+    const sql = getSql();
+    const rows = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
     return rows.map(toItemRecord);
   },
 
   async add(input: ItemInput) {
     await ensureSchema();
+    const sql = getSql();
     const record: ItemRecord = {
       id: nanoid(10),
       name: input.name,
@@ -40,7 +42,7 @@ export const itemStore = {
       position: input.position,
       createdAt: new Date().toISOString()
     };
-    const { rows } = await sql`
+    const rows = await sql`
       INSERT INTO items (
         id,
         name,
@@ -68,7 +70,8 @@ export const itemStore = {
 
   async update(id: string, input: Partial<ItemInput>) {
     await ensureSchema();
-    const { rows } = await sql`
+    const sql = getSql();
+    const rows = await sql`
       UPDATE items
       SET
         name = COALESCE(${input.name ?? null}, name),
@@ -87,12 +90,14 @@ export const itemStore = {
 
   async remove(id: string) {
     await ensureSchema();
-    const { rowCount } = await sql`DELETE FROM items WHERE id = ${id};`;
-    return rowCount > 0;
+    const sql = getSql();
+    const result = await sql`DELETE FROM items WHERE id = ${id};`;
+    return result.count > 0;
   },
 
   async clear() {
     await ensureSchema();
+    const sql = getSql();
     await sql`DELETE FROM items;`;
   }
 };

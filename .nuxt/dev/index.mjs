@@ -5,8 +5,8 @@ import crypto$1 from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/h3/dist/index.mjs';
 import { escapeHtml } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@vue/shared/dist/shared.cjs.js';
-import { sql } from '@vercel/postgres';
 import { nanoid } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/nanoid/index.js';
+import postgres from 'postgres';
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/vue-bundle-renderer/dist/runtime.mjs';
 import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/ufo/dist/index.mjs';
 import process$1 from 'node:process';
@@ -2291,13 +2291,21 @@ const login_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: login_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
+let sqlClient = null;
 let schemaReady = null;
-const ensureSchema = async () => {
-  if (schemaReady) return schemaReady;
+const getSql = () => {
+  if (sqlClient) return sqlClient;
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) {
     throw new Error("Database URL missing. Set POSTGRES_URL or DATABASE_URL.");
   }
+  const shouldUseSsl = /sslmode=require/i.test(url) || false || process.env.VERCEL === "1";
+  sqlClient = postgres(url, shouldUseSsl ? { ssl: "require" } : {});
+  return sqlClient;
+};
+const ensureSchema = async () => {
+  if (schemaReady) return schemaReady;
+  const sql = getSql();
   schemaReady = (async () => {
     await sql`
       CREATE TABLE IF NOT EXISTS elements (
@@ -2362,17 +2370,19 @@ const normalizeUpdateInput = (input) => ({
 const elementStore = {
   async list() {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
+    const sql = getSql();
+    const rows = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
     return rows.map(toElementRecord);
   },
   async sync(inputs) {
     await ensureSchema();
+    const sql = getSql();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const normalizedInputs = inputs.map(normalizeSyncInput).filter((input) => !!input.guid);
     const results = [];
     for (const record of normalizedInputs) {
       const softwareOriginator = normalizeText(record.softwareOriginator) || "";
-      const { rows } = await sql`
+      const rows = await sql`
         INSERT INTO elements (
           guid,
           revit_id,
@@ -2412,8 +2422,9 @@ const elementStore = {
   async update(guid, input) {
     var _a, _b, _c;
     await ensureSchema();
+    const sql = getSql();
     const normalized = normalizeUpdateInput(input);
-    const { rows } = await sql`
+    const rows = await sql`
       UPDATE elements
       SET
         year_added = COALESCE(${(_a = normalized.yearAdded) != null ? _a : null}, year_added),
@@ -2495,11 +2506,13 @@ const toItemRecord = (row) => {
 const itemStore = {
   async list() {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
+    const sql = getSql();
+    const rows = await sql`SELECT * FROM items ORDER BY created_at ASC;`;
     return rows.map(toItemRecord);
   },
   async add(input) {
     await ensureSchema();
+    const sql = getSql();
     const record = {
       id: nanoid(10),
       name: input.name,
@@ -2510,7 +2523,7 @@ const itemStore = {
       position: input.position,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    const { rows } = await sql`
+    const rows = await sql`
       INSERT INTO items (
         id,
         name,
@@ -2538,7 +2551,8 @@ const itemStore = {
   async update(id, input) {
     var _a, _b, _c, _d;
     await ensureSchema();
-    const { rows } = await sql`
+    const sql = getSql();
+    const rows = await sql`
       UPDATE items
       SET
         name = COALESCE(${(_a = input.name) != null ? _a : null}, name),
@@ -2556,11 +2570,13 @@ const itemStore = {
   },
   async remove(id) {
     await ensureSchema();
-    const { rowCount } = await sql`DELETE FROM items WHERE id = ${id};`;
-    return rowCount > 0;
+    const sql = getSql();
+    const result = await sql`DELETE FROM items WHERE id = ${id};`;
+    return result.count > 0;
   },
   async clear() {
     await ensureSchema();
+    const sql = getSql();
     await sql`DELETE FROM items;`;
   }
 };

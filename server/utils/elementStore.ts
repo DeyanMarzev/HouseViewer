@@ -1,5 +1,5 @@
 import type { ElementRecord, ElementSyncInput, ElementUpdateInput } from '../types/elements';
-import { ensureSchema, sql } from './db';
+import { ensureSchema, getSql } from './db';
 
 const toElementRecord = (row: any): ElementRecord => ({
   guid: String(row.guid),
@@ -36,12 +36,14 @@ const normalizeUpdateInput = (input: ElementUpdateInput): ElementUpdateInput => 
 export const elementStore = {
   async list() {
     await ensureSchema();
-    const { rows } = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
+    const sql = getSql();
+    const rows = await sql`SELECT * FROM elements ORDER BY created_at ASC;`;
     return rows.map(toElementRecord);
   },
 
   async sync(inputs: ElementSyncInput[]) {
     await ensureSchema();
+    const sql = getSql();
     const now = new Date().toISOString();
     const normalizedInputs = inputs
       .map(normalizeSyncInput)
@@ -49,7 +51,7 @@ export const elementStore = {
     const results: ElementRecord[] = [];
     for (const record of normalizedInputs) {
       const softwareOriginator = normalizeText(record.softwareOriginator) || '';
-      const { rows } = await sql`
+      const rows = await sql`
         INSERT INTO elements (
           guid,
           revit_id,
@@ -89,8 +91,9 @@ export const elementStore = {
 
   async update(guid: string, input: ElementUpdateInput) {
     await ensureSchema();
+    const sql = getSql();
     const normalized = normalizeUpdateInput(input);
-    const { rows } = await sql`
+    const rows = await sql`
       UPDATE elements
       SET
         year_added = COALESCE(${normalized.yearAdded ?? null}, year_added),
