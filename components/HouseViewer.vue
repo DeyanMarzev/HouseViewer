@@ -89,6 +89,8 @@ let renderer: THREE.WebGLRenderer;
 let labelRenderer: CSS2DRenderer | null = null;
 let esp32PollTimer: number | null = null;
 let esp32FetchInFlight = false;
+let weatherPollTimer: number | null = null;
+let weatherFetchInFlight = false;
 let controls: OrbitControls;
 let hemiLight: THREE.HemisphereLight | null = null;
 let ambientLight: THREE.AmbientLight | null = null;
@@ -1032,9 +1034,22 @@ const updateSceneBounds = () => {
 const markers = new Map<string, HTMLDivElement>();
 const sensorLabels = new Map<string, CSS2DObject>();
 type SensorReadout = { temperature: number; humidity: number; co2: number };
+type WeatherReadout = {
+  temperature: number;
+  feelsLike: number;
+  windSpeed: number;
+  windGust: number | null;
+  description: string;
+  humidity: number;
+  pressure: number;
+};
+type SensorMetric = { key: string; label: string; value: string };
 const sensorReadings = new Map<string, SensorReadout>();
 const esp32Reading = ref<SensorReadout | null>(null);
 const esp32Online = ref<boolean | null>(null);
+const weatherReadings = new Map<string, WeatherReadout>();
+const weatherReading = ref<WeatherReadout | null>(null);
+const weatherOnline = ref<boolean | null>(null);
 const editItem = reactive<EditItemState>({
   id: '',
   ...createEmptyForm()
@@ -3309,7 +3324,20 @@ const hashString = (value: string) => {
   return Math.abs(hash);
 };
 
+const isWeatherSensor = (element: StructureElement) => {
+  const family = element.FamilyName?.toLowerCase() ?? '';
+  const typeName = element.TypeName?.toLowerCase() ?? '';
+  return family.includes('esp1') || typeName.includes('esp1') || element.Id === 2546880;
+};
+
+const getSensorLabel = (element: StructureElement) => {
+  if (element.Id === 2546624) return 'Kitchen ESP32';
+  if (isWeatherSensor(element)) return 'Outside Weather';
+  return element.TypeName || element.Category || 'Sensor';
+};
+
 const isEsp32Sensor = (element: StructureElement) => {
+  if (isWeatherSensor(element)) return false;
   const family = element.FamilyName?.toLowerCase() ?? '';
   const typeName = element.TypeName?.toLowerCase() ?? '';
   return family.includes('esp32') || typeName.includes('esp32');
@@ -3328,6 +3356,31 @@ const getSensorReadout = (key: string): SensorReadout => {
     co2
   };
   sensorReadings.set(key, reading);
+  return reading;
+};
+
+const getWeatherReadout = (key: string): WeatherReadout => {
+  const existing = weatherReadings.get(key);
+  if (existing) return existing;
+  const hash = hashString(`${key}-weather`);
+  const temperature = 8 + (hash % 180) / 10;
+  const feelsLike = temperature - ((hash % 30) / 10 - 1.5);
+  const windSpeed = (hash % 90) / 10;
+  const windGust = windSpeed + (hash % 40) / 10;
+  const humidity = 35 + (hash % 60);
+  const pressure = 1000 + (hash % 45);
+  const descriptions = ['Clear', 'Partly Cloudy', 'Overcast', 'Breezy', 'Light Rain'];
+  const description = descriptions[hash % descriptions.length];
+  const reading = {
+    temperature: Number(temperature.toFixed(1)),
+    feelsLike: Number(feelsLike.toFixed(1)),
+    windSpeed: Number(windSpeed.toFixed(1)),
+    windGust: Number(windGust.toFixed(1)),
+    description,
+    humidity,
+    pressure
+  };
+  weatherReadings.set(key, reading);
   return reading;
 };
 
@@ -3362,13 +3415,85 @@ const parseEsp32Html = (html: string): SensorReadout | null => {
   return { temperature, humidity, co2 };
 };
 
+const parseWeatherJson = (data: any): WeatherReadout | null => {
+  if (!data || typeof data !== 'object') return null;
+  const temp = Number(data?.main?.temp);
+  const feelsLike = Number(data?.main?.feels_like);
+  const humidity = Number(data?.main?.humidity);
+  const pressure = Number(data?.main?.pressure);
+  const windSpeed = Number(data?.wind?.speed);
+  const windGust = data?.wind?.gust !== undefined ? Number(data.wind.gust) : null;
+  const description = typeof data?.weather?.[0]?.description === 'string' ? data.weather[0].description : '';
+  if (![temp, feelsLike, humidity, pressure, windSpeed].every(Number.isFinite)) return null;
+  return {
+    temperature: temp,
+    feelsLike,
+    windSpeed,
+    windGust: Number.isFinite(windGust) ? windGust : null,
+    description,
+    humidity,
+    pressure
+  };
+};
+
+const formatSensorMetrics = (reading: SensorReadout): SensorMetric[] => [
+  { key: 'temp', label: 'Temp', value: `${reading.temperature.toFixed(1)}°C` },
+  { key: 'humidity', label: 'Humidity', value: `${reading.humidity.toFixed(1)}%` },
+  { key: 'co2', label: 'CO2', value: `${Math.round(reading.co2)} ppm` }
+];
+
+const formatWeatherMetrics = (reading: WeatherReadout): SensorMetric[] => {
+  const description = reading.description
+    ? reading.description.charAt(0).toUpperCase() + reading.description.slice(1)
+    : '—';
+  return [
+    { key: 'outside', label: 'Outside', value: `${reading.temperature.toFixed(1)}°C` },
+    { key: 'feels', label: 'Feels Like', value: `${reading.feelsLike.toFixed(1)}°C` },
+    { key: 'speed', label: 'Speed', value: `${reading.windSpeed.toFixed(1)} m/s` },
+    {
+      key: 'gust',
+      label: 'Gust',
+      value: reading.windGust === null ? '—' : `${reading.windGust.toFixed(1)} m/s`
+    },
+    { key: 'desc', label: 'Desc', value: description },
+    { key: 'humidity', label: 'Humidity', value: `${Math.round(reading.humidity)}%` },
+    { key: 'pressure', label: 'Pressure', value: `${Math.round(reading.pressure)} hPa` }
+  ];
+};
+
+const updateSensorPanelMetrics = (panel: HTMLDivElement, metrics: SensorMetric[]) => {
+  metrics.forEach((metric) => {
+    const valueEl = panel.querySelector(`[data-metric="${metric.key}"]`) as HTMLElement | null;
+    if (valueEl) valueEl.textContent = metric.value;
+  });
+};
+
 const updateSensorPanelReadout = (panel: HTMLDivElement, reading: SensorReadout) => {
-  const tempEl = panel.querySelector('[data-metric="temp"]') as HTMLElement | null;
-  const humidityEl = panel.querySelector('[data-metric="humidity"]') as HTMLElement | null;
-  const co2El = panel.querySelector('[data-metric="co2"]') as HTMLElement | null;
-  if (tempEl) tempEl.textContent = `${reading.temperature.toFixed(1)}°C`;
-  if (humidityEl) humidityEl.textContent = `${reading.humidity.toFixed(1)}%`;
-  if (co2El) co2El.textContent = `${Math.round(reading.co2)} ppm`;
+  updateSensorPanelMetrics(panel, formatSensorMetrics(reading));
+};
+
+const updateWeatherPanelReadout = (panel: HTMLDivElement, reading: WeatherReadout) => {
+  updateSensorPanelMetrics(panel, formatWeatherMetrics(reading));
+};
+
+const buildSensorMetrics = (metrics: SensorMetric[], variant: 'default' | 'weather') => {
+  const metricsEl = document.createElement('div');
+  metricsEl.className = 'sensor-panel__metrics';
+  if (variant === 'weather') {
+    metricsEl.classList.add('sensor-panel__metrics--weather');
+  }
+  metrics.forEach((metric) => {
+    const metricEl = document.createElement('div');
+    metricEl.className = 'sensor-panel__metric';
+    const labelEl = document.createElement('span');
+    labelEl.textContent = metric.label;
+    const valueEl = document.createElement('strong');
+    valueEl.dataset.metric = metric.key;
+    valueEl.textContent = metric.value;
+    metricEl.append(labelEl, valueEl);
+    metricsEl.append(metricEl);
+  });
+  return metricsEl;
 };
 
 const updateSensorStatusBadge = (panel: HTMLDivElement, isOnline: boolean) => {
@@ -3387,6 +3512,19 @@ const applyEsp32ReadingsToLabels = () => {
     if (!element || !isEsp32Sensor(element)) return;
     const panel = label.element as HTMLDivElement;
     updateSensorPanelReadout(panel, reading);
+    updateSensorStatusBadge(panel, online);
+  });
+};
+
+const applyWeatherReadingsToLabels = () => {
+  const reading = weatherReading.value;
+  if (!reading) return;
+  const online = !!weatherOnline.value;
+  sensorLabels.forEach((label, key) => {
+    const element = structureElements.get(key);
+    if (!element || !isWeatherSensor(element)) return;
+    const panel = label.element as HTMLDivElement;
+    updateWeatherPanelReadout(panel, reading);
     updateSensorStatusBadge(panel, online);
   });
 };
@@ -3426,6 +3564,37 @@ const fetchEsp32Readings = async () => {
   }
 };
 
+const fetchWeatherReadings = async () => {
+  if (weatherFetchInFlight) return;
+  weatherFetchInFlight = true;
+  const url =
+    'https://api.openweathermap.org/data/2.5/weather?lat=51.60415&lon=-0.0045088&appid=010db3b32feb8c4061126304b97b94d4&units=metric';
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Weather fetch failed (${response.status})`);
+    }
+    const data = await response.json();
+    const parsed = parseWeatherJson(data);
+    if (!parsed) {
+      throw new Error('Weather payload missing expected fields');
+    }
+    weatherReading.value = parsed;
+    weatherOnline.value = true;
+    applyWeatherReadingsToLabels();
+  } catch (err) {
+    console.warn('Failed to fetch weather data', err);
+    weatherOnline.value = false;
+    sensorLabels.forEach((label, key) => {
+      const element = structureElements.get(key);
+      if (!element || !isWeatherSensor(element)) return;
+      updateSensorStatusBadge(label.element as HTMLDivElement, false);
+    });
+  } finally {
+    weatherFetchInFlight = false;
+  }
+};
+
 const updateEsp32Polling = () => {
   const hasEsp32 = structureElementList.value.some(isEsp32Sensor);
   if (!hasEsp32) {
@@ -3440,6 +3609,23 @@ const updateEsp32Polling = () => {
     esp32PollTimer = window.setInterval(() => {
       void fetchEsp32Readings();
     }, 15000);
+  }
+};
+
+const updateWeatherPolling = () => {
+  const hasWeather = structureElementList.value.some(isWeatherSensor);
+  if (!hasWeather) {
+    if (weatherPollTimer !== null) {
+      window.clearInterval(weatherPollTimer);
+      weatherPollTimer = null;
+    }
+    return;
+  }
+  if (weatherPollTimer === null) {
+    void fetchWeatherReadings();
+    weatherPollTimer = window.setInterval(() => {
+      void fetchWeatherReadings();
+    }, 60000);
   }
 };
 
@@ -3460,16 +3646,22 @@ const refreshSensorOverlay = () => {
     const mesh = structureMeshes.get(key);
     if (!mesh) return;
 
-    const label = element.TypeName || element.Category || 'Sensor';
+    const label = getSensorLabel(element);
+    const isWeather = isWeatherSensor(element);
+    const isEsp32 = isEsp32Sensor(element);
     const panel = document.createElement('div');
-    panel.className = 'sensor-panel';
+    panel.className = isWeather ? 'sensor-panel sensor-panel--weather' : 'sensor-panel';
     panel.dataset.key = key;
 
     const titleRow = document.createElement('div');
     titleRow.className = 'sensor-panel__title-row';
     const statusDot = document.createElement('span');
     statusDot.dataset.status = 'sensor';
-    const isOnline = isEsp32Sensor(element) ? !!esp32Online.value : true;
+    const isOnline = isWeather
+      ? !!weatherOnline.value
+      : isEsp32
+        ? !!esp32Online.value
+        : true;
     statusDot.className = `sensor-panel__status ${
       isOnline ? 'sensor-panel__status--online' : 'sensor-panel__status--offline'
     }`;
@@ -3478,27 +3670,13 @@ const refreshSensorOverlay = () => {
     title.textContent = label;
     titleRow.append(statusDot, title);
 
-    const readings = isEsp32Sensor(element) && esp32Reading.value
-      ? esp32Reading.value
-      : getSensorReadout(key);
-    const metrics = document.createElement('div');
-    metrics.className = 'sensor-panel__metrics';
-
-    const temp = document.createElement('div');
-    temp.className = 'sensor-panel__metric';
-    temp.innerHTML = `<span>Temp</span><strong data-metric="temp">${readings.temperature.toFixed(1)}°C</strong>`;
-
-    const humidity = document.createElement('div');
-    humidity.className = 'sensor-panel__metric';
-    humidity.innerHTML = `<span>Humidity</span><strong data-metric="humidity">${readings.humidity.toFixed(1)}%</strong>`;
-
-    const co2 = document.createElement('div');
-    co2.className = 'sensor-panel__metric';
-    co2.innerHTML = `<span>CO2</span><strong data-metric="co2">${Math.round(readings.co2)} ppm</strong>`;
-
-    metrics.append(temp, humidity, co2);
-
-    panel.append(titleRow, metrics);
+    const sensorMetrics = isWeather
+      ? formatWeatherMetrics(weatherReading.value ?? getWeatherReadout(key))
+      : formatSensorMetrics(
+          isEsp32 && esp32Reading.value ? esp32Reading.value : getSensorReadout(key)
+        );
+    const metricsEl = buildSensorMetrics(sensorMetrics, isWeather ? 'weather' : 'default');
+    panel.append(titleRow, metricsEl);
 
     const labelObject = new CSS2DObject(panel);
     const geometry = mesh.geometry as THREE.BufferGeometry;
@@ -3511,7 +3689,9 @@ const refreshSensorOverlay = () => {
     sensorLabels.set(key, labelObject);
   });
   updateEsp32Polling();
+  updateWeatherPolling();
   applyEsp32ReadingsToLabels();
+  applyWeatherReadingsToLabels();
 };
 
 const syncOverlayLayerBounds = (layer: HTMLDivElement | null) => {
@@ -3756,6 +3936,10 @@ onBeforeUnmount(() => {
   if (esp32PollTimer !== null) {
     window.clearInterval(esp32PollTimer);
     esp32PollTimer = null;
+  }
+  if (weatherPollTimer !== null) {
+    window.clearInterval(weatherPollTimer);
+    weatherPollTimer = null;
   }
   if (labelRenderer) {
     labelRenderer.domElement.remove();
@@ -5362,6 +5546,10 @@ watch(
   transition: opacity 0.2s ease;
 }
 
+:deep(.sensor-panel--weather) {
+  min-width: 220px;
+}
+
 :deep(.sensor-panel__title) {
   font-weight: 700;
   font-size: 0.78rem;
@@ -5394,6 +5582,10 @@ watch(
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+}
+
+:deep(.sensor-panel__metrics--weather) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 :deep(.sensor-panel__metric) {

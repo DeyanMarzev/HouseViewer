@@ -1452,7 +1452,22 @@ const plugins = [
   _qYxMXPFhsXdyEx09HDOktguT_RK7yZFNF2x9pr8iRDY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"18f60-wJ+V3D+amgIyQVyK2QRpsHADijE\"",
+    "mtime": "2026-01-01T15:01:49.274Z",
+    "size": 102240,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5ef7f-o05Ga5ILMf8dkzKrBmBZND9pfCM\"",
+    "mtime": "2026-01-01T15:01:49.274Z",
+    "size": 388991,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -2571,8 +2586,8 @@ const itemStore = {
   async remove(id) {
     await ensureSchema();
     const sql = getSql();
-    const result = await sql`DELETE FROM items WHERE id = ${id};`;
-    return result.count > 0;
+    const rows = await sql`DELETE FROM items WHERE id = ${id} RETURNING id;`;
+    return rows.length > 0;
   },
   async clear() {
     await ensureSchema();

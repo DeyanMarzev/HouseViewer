@@ -91,8 +91,8 @@ export const itemStore = {
   async remove(id: string) {
     await ensureSchema();
     const sql = getSql();
-    const result = await sql`DELETE FROM items WHERE id = ${id};`;
-    return result.count > 0;
+    const rows = await sql`DELETE FROM items WHERE id = ${id} RETURNING id;`;
+    return rows.length > 0;
   },
 
   async clear() {
