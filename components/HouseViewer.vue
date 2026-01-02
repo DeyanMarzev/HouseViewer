@@ -52,8 +52,8 @@ const elementMutationError = ref('');
 const items = ref<ItemRecord[]>([]);
 const elementRecords = reactive(new Map<string, ElementRecord>());
 const itemMeshes = new Map<string, THREE.Mesh>();
-const authHeaders = computed(() =>
-  token.value ? { Authorization: `Bearer ${token.value}` } : {}
+const authHeaders = computed<Record<string, string> | undefined>(() =>
+  token.value ? { Authorization: `Bearer ${token.value}` } : undefined
 );
 
 const createBlankPosition = () => ({ x: 0, y: 0, z: 0 });
@@ -399,7 +399,7 @@ type MaterialPreview = {
 };
 
 const normalizeMaterialName = (name?: string | null) => name?.trim().toLowerCase() ?? '';
-const isMaterialNameValid = (name?: string | null) => {
+const isMaterialNameValid = (name?: string | null): name is string => {
   const normalized = normalizeMaterialName(name);
   return !!normalized && normalized !== 'no material';
 };
@@ -1172,17 +1172,13 @@ const syncPopupMaterialInputs = (material: StructureMaterial) => {
   const key = getMaterialKey(material);
   const colorHex = getMaterialColorHex(material);
   const transparency = material.Transparency ?? 0;
-  const inputs = Array.from(doc.querySelectorAll<HTMLInputElement>('[data-key]'));
-  let colorInput: HTMLInputElement | null = null;
-  let rangeInput: HTMLInputElement | null = null;
-  let numberInput: HTMLInputElement | null = null;
-
-  inputs.forEach((input) => {
-    if (input.dataset.key !== key) return;
-    if (input.type === 'color') colorInput = input;
-    if (input.type === 'range') rangeInput = input;
-    if (input.type === 'number') numberInput = input;
-  });
+  const inputs = Array.from(doc.querySelectorAll('input[data-key]')) as HTMLInputElement[];
+  const colorInput: HTMLInputElement | null =
+    inputs.find((input) => input.dataset.key === key && input.type === 'color') ?? null;
+  const rangeInput: HTMLInputElement | null =
+    inputs.find((input) => input.dataset.key === key && input.type === 'range') ?? null;
+  const numberInput: HTMLInputElement | null =
+    inputs.find((input) => input.dataset.key === key && input.type === 'number') ?? null;
 
   if (colorInput) {
     colorInput.value = colorHex;
@@ -1196,17 +1192,15 @@ const syncPopupMaterialInputs = (material: StructureMaterial) => {
 const syncElementsPopupSelection = () => {
   if (!elementsPopup || elementsPopup.closed) return;
   const doc = elementsPopup.document;
-  const rows = Array.from(doc.querySelectorAll<HTMLTableRowElement>('tr[data-key]'));
+  const rows = Array.from(doc.querySelectorAll('tr[data-key]')) as HTMLTableRowElement[];
   if (!rows.length) return;
-  let activeRow: HTMLTableRowElement | null = null;
+  const activeRow: HTMLTableRowElement | null =
+    rows.find((row) => !!row.dataset.key && selectedStructureIds.has(row.dataset.key)) ?? null;
   rows.forEach((row) => {
     const isActive = !!row.dataset.key && selectedStructureIds.has(row.dataset.key);
     row.classList.toggle('elements-row--active', isActive);
-    if (isActive) activeRow = row;
   });
-  if (activeRow) {
-    activeRow.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
+  if (activeRow) activeRow.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 };
 
 const scrollSelectedElementRow = () => {
@@ -1443,15 +1437,15 @@ const renderElementsPopup = () => {
     });
   });
 
-  tbody.querySelectorAll('tr[data-key]').forEach((row) => {
+  tbody.querySelectorAll<HTMLTableRowElement>('tr[data-key]').forEach((row) => {
     row.addEventListener('click', () => {
-      const key = (row as HTMLTableRowElement).dataset.key;
+      const key = row.dataset.key;
       if (!key) return;
       selectStructureById(key);
     });
-    row.addEventListener('contextmenu', (event) => {
+    row.addEventListener('contextmenu', (event: MouseEvent) => {
       event.preventDefault();
-      const key = (row as HTMLTableRowElement).dataset.key;
+      const key = row.dataset.key;
       if (!key) return;
       const element = structureElements.get(key);
       if (!element) return;
@@ -3567,18 +3561,18 @@ const fetchEsp32Readings = async () => {
 const fetchWeatherReadings = async () => {
   if (weatherFetchInFlight) return;
   weatherFetchInFlight = true;
-  const apiKey = runtimeConfig.public.openWeatherMapApiKey;
-  const url = new URL('https://api.openweathermap.org/data/2.5/weather');
-  url.search = new URLSearchParams({
-    lat: '51.60415',
-    lon: '-0.0045088',
-    appid: apiKey,
-    units: 'metric'
-  }).toString();
   try {
+    const apiKey = runtimeConfig.public.openWeatherMapApiKey as string | undefined;
     if (!apiKey) {
       throw new Error('OpenWeatherMap API key missing');
     }
+    const url = new URL('https://api.openweathermap.org/data/2.5/weather');
+    url.search = new URLSearchParams({
+      lat: '51.60415',
+      lon: '-0.0045088',
+      appid: apiKey,
+      units: 'metric'
+    }).toString();
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Weather fetch failed (${response.status})`);
@@ -3834,9 +3828,8 @@ const disposeMesh = (mesh: THREE.Mesh) => {
   mesh.geometry.dispose();
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   materials.forEach((mat) => {
-    if ('map' in mat && mat.map) {
-      mat.map.dispose();
-    }
+    const materialWithMap = mat as THREE.Material & { map?: THREE.Texture | null };
+    if (materialWithMap.map) materialWithMap.map.dispose();
     sensorClippedMaterials.delete(mat);
     mat.dispose();
   });
