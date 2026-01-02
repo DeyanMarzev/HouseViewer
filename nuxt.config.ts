@@ -4,6 +4,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   runtimeConfig: {
     authSecret: 'dev-auth-secret-change-me',
+    authEditorEmail: 'marzev@gmail.com',
     authUsers: [
       { email: 'marzev@gmail.com', password: '1234' },
       { email: 'demo@example.com', password: 'demo123' }

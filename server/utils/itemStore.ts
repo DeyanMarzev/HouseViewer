@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import type { ItemInput, ItemRecord } from '../types/items';
 import { ensureSchema, getSql } from './db';
+import { parsePositionValue, parseRoomsValue } from './itemParsing.js';
 
 const toItemRecord = (row: any): ItemRecord => ({
   id: String(row.id),
@@ -8,15 +9,8 @@ const toItemRecord = (row: any): ItemRecord => ({
   description: row.description || '',
   url: row.url || '',
   dateAdded: row.date_added || '',
-  rooms: Array.isArray(row.rooms)
-    ? row.rooms
-    : typeof row.rooms === 'string'
-      ? JSON.parse(row.rooms)
-      : row.rooms ?? [],
-  position:
-    row.position && typeof row.position === 'string'
-      ? JSON.parse(row.position)
-      : row.position ?? { x: 0, y: 0, z: 0 },
+  rooms: parseRoomsValue(row.rooms),
+  position: parsePositionValue(row.position),
   createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
   updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
 });
@@ -78,8 +72,8 @@ export const itemStore = {
         description = COALESCE(${input.description ?? null}, description),
         url = COALESCE(${input.url ?? null}, url),
         date_added = COALESCE(${input.dateAdded ?? null}, date_added),
-        rooms = COALESCE(${input.rooms ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
-        position = COALESCE(${input.position ? JSON.stringify(input.position) : null}::jsonb, position),
+        rooms = COALESCE(${input.rooms !== undefined ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
+        position = COALESCE(${input.position !== undefined ? JSON.stringify(input.position) : null}::jsonb, position),
         updated_at = ${new Date().toISOString()}
       WHERE id = ${id}
       RETURNING *;

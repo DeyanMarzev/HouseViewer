@@ -53,3 +53,12 @@ export const requireAuth = (event: H3Event) => {
   }
   return payload;
 };
+
+export const requireEditor = (event: H3Event) => {
+  const payload = requireAuth(event);
+  const editorEmail = useRuntimeConfig(event).authEditorEmail;
+  if (!editorEmail || payload.email.toLowerCase() !== editorEmail.toLowerCase()) {
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden' });
+  }
+  return payload;
+};

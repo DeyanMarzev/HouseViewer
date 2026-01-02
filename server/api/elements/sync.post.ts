@@ -1,6 +1,6 @@
 import { defineEventHandler, readBody } from 'h3';
 import type { ElementSyncInput } from '../../types/elements';
-import { requireAuth } from '../../utils/auth';
+import { requireEditor } from '../../utils/auth';
 import { elementStore } from '../../utils/elementStore';
 
 const toSyncInput = (input: ElementSyncInput) => ({
@@ -14,7 +14,7 @@ const toSyncInput = (input: ElementSyncInput) => ({
 });
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   const body = await readBody<{ elements?: ElementSyncInput[] }>(event);
 
   if (!body?.elements || !Array.isArray(body.elements)) {

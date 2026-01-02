@@ -1,10 +1,10 @@
 import { defineEventHandler, readBody } from 'h3';
 import type { ElementUpdateInput } from '../../types/elements';
-import { requireAuth } from '../../utils/auth';
+import { requireEditor } from '../../utils/auth';
 import { elementStore } from '../../utils/elementStore';
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   const guid = event.context.params?.guid;
   if (!guid) {
     throw createError({ statusCode: 400, statusMessage: 'Element guid is required' });

@@ -1,9 +1,9 @@
 import { defineEventHandler } from 'h3';
-import { requireAuth } from '../../utils/auth';
+import { requireEditor } from '../../utils/auth';
 import { itemStore } from '../../utils/itemStore';
 
 export default defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   const id = event.context.params?.id;
   if (!id) {
     throw createError({ statusCode: 400, statusMessage: 'Item id is required' });

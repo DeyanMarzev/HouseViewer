@@ -4,7 +4,7 @@ import { useAuth } from '~/composables/useAuth';
 
 const editorEmail = 'marzev@gmail.com';
 const email = ref(editorEmail);
-const password = ref('1234');
+const password = ref('');
 const loading = ref(false);
 const error = ref('');
 const { user, logout, login } = useAuth();

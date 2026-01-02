@@ -6,7 +6,8 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "start": "nuxt start",
-    "lint": "echo 'add linter'"
+    "lint": "echo 'add linter'",
+    "test": "node --test"
   },
   "dependencies": {
     "nanoid": "^5.0.7",
