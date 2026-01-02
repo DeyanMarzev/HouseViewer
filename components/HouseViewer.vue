@@ -27,6 +27,7 @@ const canvasWrap = ref<HTMLDivElement | null>(null);
 const overlay = ref<HTMLDivElement | null>(null);
 const markerLayer = ref<HTMLDivElement | null>(null);
 const { token, user } = useAuth();
+const runtimeConfig = useRuntimeConfig();
 const editorEmail = 'marzev@gmail.com';
 const isEditor = computed(() =>
   user.value?.email?.toLowerCase() === editorEmail.toLowerCase()
@@ -2272,19 +2273,18 @@ const addModelElements = (
 };
 
 const loadStructureModel = async () => {
-  const config = useRuntimeConfig();
   loadingModel.value = true;
   modelError.value = '';
   sensorBoxInitialized = false;
 
   try {
-    const structureUrl = config.public.structureModel || '/models/House_structure.json';
-    const finishesUrl = config.public.finishesModel || '/models/House_Finishes.json';
-    const plumbingUrl = config.public.plumbingModel || '/models/House_Plumbing.json';
-    const sensorsUrl = config.public.sensorsModel || '/models/House_Sensors.json';
-    const landscapeUrl = config.public.landscapeModel || '/models/House_Landscape.json';
+    const structureUrl = runtimeConfig.public.structureModel || '/models/House_structure.json';
+    const finishesUrl = runtimeConfig.public.finishesModel || '/models/House_Finishes.json';
+    const plumbingUrl = runtimeConfig.public.plumbingModel || '/models/House_Plumbing.json';
+    const sensorsUrl = runtimeConfig.public.sensorsModel || '/models/House_Sensors.json';
+    const landscapeUrl = runtimeConfig.public.landscapeModel || '/models/House_Landscape.json';
     const adjacentBuildingsUrl =
-      config.public.adjacentBuildingsModel || '/models/House_AdjacentBuildings.json';
+      runtimeConfig.public.adjacentBuildingsModel || '/models/House_AdjacentBuildings.json';
 
     const structureResponse = await fetch(structureUrl);
     if (!structureResponse.ok) {
@@ -3567,9 +3567,18 @@ const fetchEsp32Readings = async () => {
 const fetchWeatherReadings = async () => {
   if (weatherFetchInFlight) return;
   weatherFetchInFlight = true;
-  const url =
-    'https://api.openweathermap.org/data/2.5/weather?lat=51.60415&lon=-0.0045088&appid=010db3b32feb8c4061126304b97b94d4&units=metric';
+  const apiKey = runtimeConfig.public.openWeatherMapApiKey;
+  const url = new URL('https://api.openweathermap.org/data/2.5/weather');
+  url.search = new URLSearchParams({
+    lat: '51.60415',
+    lon: '-0.0045088',
+    appid: apiKey,
+    units: 'metric'
+  }).toString();
   try {
+    if (!apiKey) {
+      throw new Error('OpenWeatherMap API key missing');
+    }
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Weather fetch failed (${response.status})`);

@@ -20,7 +20,8 @@ export default defineNuxtConfig({
       // Path to the landscape model served from /public
       landscapeModel: '/models/House_Landscape.json',
       // Path to the adjacent buildings model served from /public
-      adjacentBuildingsModel: '/models/House_AdjacentBuildings.json'
+      adjacentBuildingsModel: '/models/House_AdjacentBuildings.json',
+      openWeatherMapApiKey: process.env.MYOPENWEATHERMAPAPIKEY || ''
     }
   },
   app: {
