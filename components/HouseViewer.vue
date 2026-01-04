@@ -111,7 +111,184 @@ const clipHelpers: THREE.PlaneHelper[] = [];
 
 const computeItemSize = () => 10;
 const DEFAULT_FLOOR_HEIGHT = 6;
-const sensorPlaneColors = [0x38bdf8, 0x34d399, 0x818cf8];
+const CLIPPING_BOX_LAYER = 1;
+const SENSOR_BOX_FACE_COLOR = 0xeeddcc;
+const SENSOR_BOX_FACE_OPACITY = 0.4;
+const SENSOR_BOX_FACE_ACTIVE_OPACITY = 0.6;
+const SENSOR_BOX_LINE_COLOR = 0x000000;
+const SENSOR_BOX_LINE_ACTIVE_COLOR = 0xf83610;
+const SENSOR_CAP_COLOR = 0xf83610;
+const sensorBoxLinePairs: [number, number][] = [
+  [0, 1],
+  [0, 2],
+  [0, 4],
+  [1, 3],
+  [1, 5],
+  [2, 3],
+  [2, 6],
+  [3, 7],
+  [4, 5],
+  [4, 6],
+  [5, 7],
+  [6, 7]
+];
+const sensorBoxFaceLines: number[][] = [
+  [1, 2, 6, 9],
+  [3, 4, 7, 10],
+  [0, 2, 4, 8],
+  [5, 6, 7, 11],
+  [0, 1, 3, 5],
+  [8, 9, 10, 11]
+];
+const sensorBoxLineMaterial = new THREE.LineBasicMaterial({
+  color: SENSOR_BOX_LINE_COLOR,
+  linewidth: 2,
+  depthTest: false
+});
+const sensorBoxLineActiveMaterial = new THREE.LineBasicMaterial({
+  color: SENSOR_BOX_LINE_ACTIVE_COLOR,
+  linewidth: 4,
+  depthTest: false
+});
+
+const clippingBoxShaders = {
+  vertex: `
+    uniform vec3 color;
+    varying vec3 pixelNormal;
+    void main() {
+      pixelNormal = normal;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  vertexClipping: `
+    uniform vec3 color;
+    uniform vec3 clippingLow;
+    uniform vec3 clippingHigh;
+    varying vec3 pixelNormal;
+    varying vec4 worldPosition;
+    varying vec3 camPosition;
+    void main() {
+      pixelNormal = normal;
+      worldPosition = modelMatrix * vec4(position, 1.0);
+      camPosition = cameraPosition;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragment: `
+    uniform vec3 color;
+    varying vec3 pixelNormal;
+    void main(void) {
+      float shade = (
+        3.0 * pow(abs(pixelNormal.y), 2.0) +
+        2.0 * pow(abs(pixelNormal.z), 2.0) +
+        1.0 * pow(abs(pixelNormal.x), 2.0)
+      ) / 3.0;
+      gl_FragColor = vec4(color * shade, 1.0);
+    }
+  `,
+  fragmentClippingFront: `
+    uniform vec3 color;
+    uniform vec3 clippingLow;
+    uniform vec3 clippingHigh;
+    varying vec3 pixelNormal;
+    varying vec4 worldPosition;
+    varying vec3 camPosition;
+    void main(void) {
+      float shade = (
+        3.0 * pow(abs(pixelNormal.y), 2.0) +
+        2.0 * pow(abs(pixelNormal.z), 2.0) +
+        1.0 * pow(abs(pixelNormal.x), 2.0)
+      ) / 3.0;
+      bool cameraInside = (
+        camPosition.x >= clippingLow.x && camPosition.x <= clippingHigh.x &&
+        camPosition.y >= clippingLow.y && camPosition.y <= clippingHigh.y &&
+        camPosition.z >= clippingLow.z && camPosition.z <= clippingHigh.z
+      );
+      bool outsideBox = (
+        worldPosition.x < clippingLow.x || worldPosition.x > clippingHigh.x ||
+        worldPosition.y < clippingLow.y || worldPosition.y > clippingHigh.y ||
+        worldPosition.z < clippingLow.z || worldPosition.z > clippingHigh.z
+      );
+      bool clipForFacing = (
+        (worldPosition.x < clippingLow.x && camPosition.x < clippingLow.x) ||
+        (worldPosition.x > clippingHigh.x && camPosition.x > clippingHigh.x) ||
+        (worldPosition.y < clippingLow.y && camPosition.y < clippingLow.y) ||
+        (worldPosition.y > clippingHigh.y && camPosition.y > clippingHigh.y) ||
+        (worldPosition.z < clippingLow.z && camPosition.z < clippingLow.z) ||
+        (worldPosition.z > clippingHigh.z && camPosition.z > clippingHigh.z)
+      );
+      if ((cameraInside && outsideBox) || (!cameraInside && clipForFacing)) {
+        discard;
+      } else {
+        gl_FragColor = vec4(color * shade, 1.0);
+      }
+    }
+  `
+};
+
+const clippingBoxUniforms = {
+  color: { value: new THREE.Color('#3d9ecb') },
+  clippingLow: { value: new THREE.Vector3() },
+  clippingHigh: { value: new THREE.Vector3() }
+};
+
+const clippingBoxCapsUniforms = {
+  color: { value: new THREE.Color('#f83610') }
+};
+
+const sensorStencilBackMaterial = new THREE.ShaderMaterial({
+  uniforms: clippingBoxUniforms,
+  vertexShader: clippingBoxShaders.vertexClipping,
+  fragmentShader: clippingBoxShaders.fragmentClippingFront,
+  side: THREE.BackSide,
+  colorWrite: false,
+  depthWrite: false,
+  depthTest: true,
+  stencilWrite: true,
+  stencilFunc: THREE.AlwaysStencilFunc,
+  stencilRef: 1,
+  stencilFuncMask: 0xff,
+  stencilFail: THREE.KeepStencilOp,
+  stencilZFail: THREE.KeepStencilOp,
+  stencilZPass: THREE.IncrementWrapStencilOp
+});
+
+const sensorStencilFrontMaterial = new THREE.ShaderMaterial({
+  uniforms: clippingBoxUniforms,
+  vertexShader: clippingBoxShaders.vertexClipping,
+  fragmentShader: clippingBoxShaders.fragmentClippingFront,
+  side: THREE.FrontSide,
+  colorWrite: false,
+  depthWrite: false,
+  depthTest: true,
+  stencilWrite: true,
+  stencilFunc: THREE.AlwaysStencilFunc,
+  stencilRef: 1,
+  stencilFuncMask: 0xff,
+  stencilFail: THREE.KeepStencilOp,
+  stencilZFail: THREE.KeepStencilOp,
+  stencilZPass: THREE.DecrementWrapStencilOp
+});
+
+const sensorCapsMaterial = new THREE.ShaderMaterial({
+  uniforms: clippingBoxCapsUniforms,
+  vertexShader: clippingBoxShaders.vertex,
+  fragmentShader: clippingBoxShaders.fragment,
+  stencilWrite: true,
+  stencilFunc: THREE.NotEqualStencilFunc,
+  stencilRef: 0,
+  stencilFuncMask: 0xff,
+  stencilFail: THREE.KeepStencilOp,
+  stencilZFail: THREE.KeepStencilOp,
+  stencilZPass: THREE.KeepStencilOp
+});
+
+const sensorCapsDebugMaterial = new THREE.MeshBasicMaterial({
+  color: '#f83610',
+  transparent: true,
+  opacity: 0.35,
+  depthTest: false
+});
 
 const layoutRef = ref<HTMLDivElement | null>(null);
 const leftPanelWidth = ref(280);
@@ -123,13 +300,16 @@ const rightPanelTab = ref<RightPanelTab>('models');
 const sensorPlanes: THREE.Plane[] = [];
 const sensorPlaneMeshes: THREE.Mesh[] = [];
 const sensorHitMeshes: THREE.Mesh[] = [];
-let sensorBoxHelper: THREE.Box3Helper | null = null;
+const sensorBoxLineMeshes: THREE.LineSegments[] = [];
+let sensorCapsScene: THREE.Scene | null = null;
+let sensorCapsMesh: THREE.Mesh | null = null;
 const sensorClippedMaterials = new Set<THREE.Material>();
 const sensorBoxVisible = ref(true);
 let sensorBoxSize = new THREE.Vector3();
 let sensorBoxMin = new THREE.Vector3();
 let sensorBoxMax = new THREE.Vector3();
 let sensorBoxInitialized = false;
+const sensorBoxCorners = Array.from({ length: 8 }, () => new THREE.Vector3());
 let sensorDraggingIndex: number | null = null;
 let sensorActiveIndex: number | null = null;
 let sensorDragViewPlane: THREE.Plane | null = null;
@@ -143,6 +323,7 @@ const clipStencilGroups: { parent: THREE.Object3D; group: THREE.Group }[] = [];
 const clipCapMeshes: THREE.Mesh[] = [];
 const capColorMode = ref<'gray' | 'match'>('gray');
 const debugClipping = ref(false);
+const debugSensorCaps = ref(false);
 const canvasBackground = ref<'dark' | 'light'>('dark');
 const showCanvasSettings = ref(false);
 const showElementsTable = ref(false);
@@ -1883,6 +2064,24 @@ const isObjectVisible = (object: THREE.Object3D | null) => {
 
 const getVisibleStructureMeshes = () => structureMeshList.filter((mesh) => isObjectVisible(mesh));
 
+const getVisibleStructureBounds = () => {
+  if (!modelRoot) return null;
+  modelRoot.updateMatrixWorld(true);
+  const bounds = new THREE.Box3();
+  let hasBounds = false;
+  getVisibleStructureMeshes().forEach((mesh) => {
+    const meshBounds = new THREE.Box3().setFromObject(mesh);
+    if (meshBounds.isEmpty()) return;
+    if (!hasBounds) {
+      bounds.copy(meshBounds);
+      hasBounds = true;
+      return;
+    }
+    bounds.union(meshBounds);
+  });
+  return hasBounds ? bounds : null;
+};
+
 const fetchItems = async () => {
   itemsLoading.value = true;
   itemsError.value = '';
@@ -2090,6 +2289,8 @@ const initThree = () => {
 
   camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
   camera.position.set(6, 5, 8);
+  camera.layers.enable(CLIPPING_BOX_LAYER);
+  raycaster.layers.enable(CLIPPING_BOX_LAYER);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, stencil: true });
   renderer.setSize(width, height);
@@ -2242,6 +2443,7 @@ const addModelElements = (
     geometry.computeBoundingSphere();
 
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.layers.set(CLIPPING_BOX_LAYER);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
@@ -2769,19 +2971,45 @@ const disposeSensorVisuals = () => {
     mats.forEach((m) => m.dispose());
   });
 
-  if (sensorBoxHelper) {
-    scene.remove(sensorBoxHelper);
-    sensorBoxHelper.geometry.dispose();
-    (sensorBoxHelper.material as THREE.Material).dispose();
-    sensorBoxHelper = null;
-  }
+  sensorBoxLineMeshes.splice(0).forEach((line) => {
+    scene.remove(line);
+    line.geometry.dispose();
+  });
 
   sensorPlanes.length = 0;
 };
 
+const ensureSensorCapsAssets = () => {
+  if (!sensorCapsScene) {
+    sensorCapsScene = new THREE.Scene();
+  }
+  if (!sensorCapsMesh) {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    sensorCapsMesh = new THREE.Mesh(geometry, sensorCapsMaterial);
+    sensorCapsMesh.frustumCulled = false;
+    sensorCapsScene.add(sensorCapsMesh);
+  }
+};
+
+const updateSensorCapsMesh = () => {
+  if (!sensorCapsMesh) return;
+  const size = sensorBoxMax.clone().sub(sensorBoxMin);
+  if (size.lengthSq() === 0) return;
+  const center = sensorBoxMin.clone().add(sensorBoxMax).multiplyScalar(0.5);
+  sensorCapsMesh.scale.copy(size);
+  sensorCapsMesh.position.copy(center);
+  sensorCapsMesh.updateMatrixWorld(true);
+};
+
+const syncSensorClipUniforms = () => {
+  clippingBoxUniforms.clippingLow.value.copy(sensorBoxMin);
+  clippingBoxUniforms.clippingHigh.value.copy(sensorBoxMax);
+  updateSensorCapsMesh();
+};
+
 const setSensorBoxToBounds = () => {
   if (!modelRoot) return;
-  const bounds = modelBounds.clone().expandByScalar(0);
+  const bounds = getVisibleStructureBounds() ?? modelBounds.clone().expandByScalar(0);
   const size = bounds.getSize(new THREE.Vector3());
   if (size.lengthSq() === 0) return;
   sensorBoxMin = bounds.min.clone();
@@ -2802,11 +3030,64 @@ const clampSensorBoxToBounds = () => {
 
 const applySensorBoxVisibility = () => {
   const visible = sensorBoxVisible.value;
-  sensorPlaneMeshes.forEach((m) => (m.visible = visible && debugClipping.value));
+  sensorPlaneMeshes.forEach((m) => (m.visible = visible));
   sensorHitMeshes.forEach((m) => (m.visible = visible));
-  // Keep caps visible even when the box visuals are hidden.
-  sensorCapMeshes.forEach((m) => (m.visible = true));
-  if (sensorBoxHelper) sensorBoxHelper.visible = visible;
+  sensorBoxLineMeshes.forEach((m) => (m.visible = visible));
+  // Caps render in a separate pass and stay visible even if the box is hidden.
+};
+
+const updateSensorBoxCorners = () => {
+  const min = sensorBoxMin;
+  const max = sensorBoxMax;
+  sensorBoxCorners[0].set(min.x, min.y, min.z);
+  sensorBoxCorners[1].set(max.x, min.y, min.z);
+  sensorBoxCorners[2].set(min.x, max.y, min.z);
+  sensorBoxCorners[3].set(max.x, max.y, min.z);
+  sensorBoxCorners[4].set(min.x, min.y, max.z);
+  sensorBoxCorners[5].set(max.x, min.y, max.z);
+  sensorBoxCorners[6].set(min.x, max.y, max.z);
+  sensorBoxCorners[7].set(max.x, max.y, max.z);
+};
+
+const updateSensorBoxLineHighlight = () => {
+  const activeIndex = sensorActiveIndex;
+  const activeLines = activeIndex !== null ? new Set(sensorBoxFaceLines[activeIndex]) : null;
+  sensorBoxLineMeshes.forEach((line, idx) => {
+    const shouldHighlight = activeLines?.has(idx) ?? false;
+    line.material = shouldHighlight ? sensorBoxLineActiveMaterial : sensorBoxLineMaterial;
+  });
+};
+
+const updateSensorBoxLines = () => {
+  updateSensorBoxCorners();
+  sensorBoxLineMeshes.forEach((line, idx) => {
+    const [aIdx, bIdx] = sensorBoxLinePairs[idx];
+    const positions = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const a = sensorBoxCorners[aIdx];
+    const b = sensorBoxCorners[bIdx];
+    positions.setXYZ(0, a.x, a.y, a.z);
+    positions.setXYZ(1, b.x, b.y, b.z);
+    positions.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+  });
+  updateSensorBoxLineHighlight();
+};
+
+const buildSensorBoxLines = () => {
+  if (!scene) return;
+  if (!sensorBoxLineMeshes.length) {
+    sensorBoxLinePairs.forEach(() => {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const line = new THREE.LineSegments(geometry, sensorBoxLineMaterial);
+      line.frustumCulled = false;
+      line.renderOrder = 25;
+      sensorBoxLineMeshes.push(line);
+      scene.add(line);
+    });
+  }
+  updateSensorBoxLines();
 };
 
 const buildCapsForPlanes = (
@@ -2816,13 +3097,14 @@ const buildCapsForPlanes = (
   capMeshes: THREE.Mesh[],
   stencilGroups: { parent: THREE.Object3D; group: THREE.Group }[],
   restorePlanes: () => THREE.Plane[],
-  forceOnTop = false
+  forceOnTop = false,
+  capColorOverride?: THREE.Color
 ) => {
   if (!renderer || !planes.length) return;
   disposeCaps(capMeshes, stencilGroups);
   const stencilOrder = -20;
   const capOrderStart = 20;
-  const capColor = getCapColor();
+  const capColor = capColorOverride ?? getCapColor();
 
   const meshes = getClippableMeshes();
   meshes.forEach((mesh) => {
@@ -2910,8 +3192,21 @@ const buildSensorCaps = (boxCenter: THREE.Vector3) => {
     sensorCapMeshes,
     sensorStencilGroups,
     () => sensorPlanes,
-    false
+    false,
+    new THREE.Color(SENSOR_CAP_COLOR)
   );
+  // Keep sensor caps opaque to avoid transparency sorting artifacts while orbiting.
+  sensorCapMeshes.forEach((mesh) => {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mats.forEach((mat) => {
+      if ('transparent' in mat) mat.transparent = false;
+      if ('opacity' in mat) mat.opacity = 1;
+      if ('depthWrite' in mat) mat.depthWrite = true;
+      if ('polygonOffsetFactor' in mat) mat.polygonOffsetFactor = -1;
+      if ('polygonOffsetUnits' in mat) mat.polygonOffsetUnits = -8;
+      mat.needsUpdate = true;
+    });
+  });
 };
 
 const updateSensorCaps = (boxCenter: THREE.Vector3) => {
@@ -2938,13 +3233,7 @@ const buildSensorView = () => {
   enableSensorClipping(sensorPlanes);
 
   const boxCenter = sensorBoxMin.clone().add(sensorBoxMax).multiplyScalar(0.5);
-
-  sensorBoxHelper = new THREE.Box3Helper(new THREE.Box3(sensorBoxMin.clone(), sensorBoxMax.clone()), 0x22d3ee);
-  sensorBoxHelper.frustumCulled = false;
-  const helperBypass = createClipBypass(() => sensorPlanes);
-  sensorBoxHelper.onBeforeRender = helperBypass.onBeforeRender;
-  sensorBoxHelper.onAfterRender = helperBypass.onAfterRender;
-  scene.add(sensorBoxHelper);
+  buildSensorBoxLines();
 
   const planeDims: [number, number][] = [
     [sensorBoxSize.z, sensorBoxSize.y],
@@ -2956,10 +3245,10 @@ const buildSensorView = () => {
   ];
   sensorPlanes.forEach((plane, idx) => {
     const mat = new THREE.MeshBasicMaterial({
-      color: sensorPlaneColors[idx % sensorPlaneColors.length],
+      color: SENSOR_BOX_FACE_COLOR,
       transparent: true,
-      opacity: 0.2,
-      side: THREE.DoubleSide,
+      opacity: SENSOR_BOX_FACE_OPACITY,
+      side: THREE.FrontSide,
       depthWrite: false,
       depthTest: false,
       clippingPlanes: []
@@ -2973,8 +3262,6 @@ const buildSensorView = () => {
     mesh.onBeforeRender = meshBypass.onBeforeRender;
     mesh.onAfterRender = meshBypass.onAfterRender;
     sensorPlaneMeshes.push(mesh);
-    // Keep the visual plane hidden by default to match floor clipping view.
-    mesh.visible = false;
     scene.add(mesh);
 
     const hitMat = new THREE.MeshBasicMaterial({
@@ -2998,6 +3285,8 @@ const buildSensorView = () => {
     scene.add(hitMesh);
   });
 
+  ensureSensorCapsAssets();
+  syncSensorClipUniforms();
   buildSensorCaps(boxCenter);
   const meshes = getModelMeshes();
   meshes.forEach((m) => m.updateMatrixWorld(true));
@@ -3024,7 +3313,7 @@ const exitSensorsView = () => {
 };
 
 const updateSensorVisualsFromBox = () => {
-  if (!renderer || sensorPlanes.length !== 6 || sensorPlaneMeshes.length !== 6 || !sensorBoxHelper) return;
+  if (!renderer || sensorPlanes.length !== 6 || sensorPlaneMeshes.length !== 6) return;
 
   sensorBoxSize = sensorBoxMax.clone().sub(sensorBoxMin);
   const boxCenter = sensorBoxMin.clone().add(sensorBoxMax).multiplyScalar(0.5);
@@ -3038,8 +3327,7 @@ const updateSensorVisualsFromBox = () => {
   renderer.clippingPlanes = [];
   renderer.clippingPlanes = sensorPlanes;
 
-  sensorBoxHelper.box = new THREE.Box3(sensorBoxMin.clone(), sensorBoxMax.clone());
-  sensorBoxHelper.updateMatrixWorld(true);
+  updateSensorBoxLines();
 
   const planeDims: [number, number][] = [
     [sensorBoxSize.z, sensorBoxSize.y],
@@ -3062,6 +3350,7 @@ const updateSensorVisualsFromBox = () => {
     alignObjectToPlane(mesh, sensorPlanes[idx], boxCenter);
   });
   renderer.clippingPlanes = sensorPlanes;
+  syncSensorClipUniforms();
   updateSensorCaps(boxCenter);
   applySensorBoxVisibility();
 
@@ -3074,10 +3363,21 @@ const updateSensorFaceStyles = (index: number, active: boolean) => {
   const mesh = sensorPlaneMeshes[index];
   if (!mesh) return;
   const mat = mesh.material as THREE.MeshBasicMaterial;
-  const baseColor = sensorPlaneColors[index % sensorPlaneColors.length];
-  mat.color.set(active ? 0xef4444 : baseColor);
-  mat.opacity = active ? 0.35 : 0.2;
+  mat.color.set(SENSOR_BOX_FACE_COLOR);
+  mat.opacity = active ? SENSOR_BOX_FACE_ACTIVE_OPACITY : SENSOR_BOX_FACE_OPACITY;
   mat.needsUpdate = true;
+};
+
+const setSensorActiveIndex = (next: number | null) => {
+  if (sensorActiveIndex === next) return;
+  if (sensorActiveIndex !== null) {
+    updateSensorFaceStyles(sensorActiveIndex, false);
+  }
+  sensorActiveIndex = next;
+  if (sensorActiveIndex !== null) {
+    updateSensorFaceStyles(sensorActiveIndex, true);
+  }
+  updateSensorBoxLineHighlight();
 };
 
 const handleSensorDragMove = (event: MouseEvent) => {
@@ -3123,6 +3423,21 @@ const handleSensorDragMove = (event: MouseEvent) => {
   event.preventDefault();
 };
 
+const updateSensorHover = (event: MouseEvent) => {
+  if (mode.value !== 'sensors' || sensorDraggingIndex !== null) return;
+  if (!setPointerFromEvent(event)) return;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(sensorHitMeshes, false);
+  if (hits.length) {
+    const hit = hits[0];
+    const idx = (hit.object as THREE.Mesh).userData.sensorIndex as number | undefined;
+    const faceIndex = typeof idx === 'number' ? idx : sensorPlaneMeshes.indexOf(hit.object as THREE.Mesh);
+    setSensorActiveIndex(faceIndex >= 0 ? faceIndex : null);
+    return;
+  }
+  setSensorActiveIndex(null);
+};
+
 const onCanvasMouseDown = (event: MouseEvent) => {
   if (mode.value !== 'sensors') return;
   if (!setPointerFromEvent(event)) return;
@@ -3132,11 +3447,7 @@ const onCanvasMouseDown = (event: MouseEvent) => {
   const hit = hits[0];
   const idx = (hit.object as THREE.Mesh).userData.sensorIndex as number | undefined;
   sensorDraggingIndex = typeof idx === 'number' ? idx : sensorPlaneMeshes.indexOf(hit.object as THREE.Mesh);
-  if (sensorActiveIndex !== null && sensorActiveIndex !== sensorDraggingIndex) {
-    updateSensorFaceStyles(sensorActiveIndex, false);
-  }
-  sensorActiveIndex = sensorDraggingIndex;
-  updateSensorFaceStyles(sensorDraggingIndex, true);
+  setSensorActiveIndex(sensorDraggingIndex);
   const viewNormal = camera.getWorldDirection(new THREE.Vector3()).normalize();
   sensorDragViewPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(viewNormal, hit.point.clone());
   sensorDragStartPoint = hit.point.clone();
@@ -3146,11 +3457,35 @@ const onCanvasMouseDown = (event: MouseEvent) => {
   event.preventDefault();
 };
 
+// Render the sensor view, with optional caps debug overlay.
+const renderSensorClippingBox = () => {
+  if (mode.value !== 'sensors') return false;
+  if (!renderer || !camera) return false;
+  clearStencilIfNeeded();
+  renderer.render(scene, camera);
+
+  if (debugSensorCaps.value && sensorCapsScene && sensorCapsMesh) {
+    const prevAutoClear = renderer.autoClear;
+    const prevClipping = renderer.clippingPlanes ? [...renderer.clippingPlanes] : [];
+    const prevCapsMat = sensorCapsMesh.material;
+    sensorCapsMesh.material = sensorCapsDebugMaterial;
+    renderer.autoClear = false;
+    renderer.clippingPlanes = [];
+    renderer.render(sensorCapsScene, camera);
+    renderer.clippingPlanes = prevClipping;
+    sensorCapsMesh.material = prevCapsMat;
+    renderer.autoClear = prevAutoClear;
+  }
+  return true;
+};
+
 const animate = () => {
   animationId = requestAnimationFrame(animate);
   controls.update();
-  clearStencilIfNeeded();
-  renderer.render(scene, camera);
+  if (!renderSensorClippingBox()) {
+    clearStencilIfNeeded();
+    renderer.render(scene, camera);
+  }
   labelRenderer?.render(scene, camera);
   updateMarkerPositions();
   updateSensorPanelPositions();
@@ -3173,10 +3508,7 @@ const stopDrag = () => {
   dragSide.value = null;
   sensorDraggingIndex = null;
   controls.enabled = true;
-  if (sensorActiveIndex !== null) {
-    updateSensorFaceStyles(sensorActiveIndex, false);
-    sensorActiveIndex = null;
-  }
+  setSensorActiveIndex(null);
   sensorDragViewPlane = null;
   sensorDragStartPoint = null;
   sensorDragStartMin = null;
@@ -3187,6 +3519,10 @@ const onPointerMove = (event: MouseEvent) => {
   if (sensorDraggingIndex !== null && mode.value === 'sensors') {
     handleSensorDragMove(event);
     return;
+  }
+
+  if (mode.value === 'sensors' && !dragSide.value) {
+    updateSensorHover(event);
   }
 
   if (!dragSide.value || !layoutRef.value) return;
@@ -3879,6 +4215,7 @@ const createItemMesh = (item: ItemRecord) => {
   ];
 
   const mesh = new THREE.Mesh(geometry, materials);
+  mesh.layers.set(CLIPPING_BOX_LAYER);
   mesh.position.set(item.position.x, item.position.y, item.position.z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -3932,6 +4269,20 @@ onBeforeUnmount(() => {
   disableSensorClipping();
   disposeSensorVisuals();
   disposeCaps(clipCapMeshes, clipStencilGroups);
+  if (sensorCapsMesh) {
+    sensorCapsScene?.remove(sensorCapsMesh);
+    sensorCapsMesh.geometry.dispose();
+    const material = sensorCapsMesh.material as THREE.Material;
+    material.dispose();
+    sensorCapsMesh = null;
+  }
+  sensorCapsScene = null;
+  sensorStencilBackMaterial.dispose();
+  sensorStencilFrontMaterial.dispose();
+  sensorCapsMaterial.dispose();
+  sensorCapsDebugMaterial.dispose();
+  sensorBoxLineMaterial.dispose();
+  sensorBoxLineActiveMaterial.dispose();
   clearSensorLabels();
   renderer?.dispose();
   controls?.dispose();
@@ -4111,7 +4462,7 @@ watch(
           :class="['chip', 'chip--wide', mode === 'sensors' && 'chip--active']"
           @click="mode = 'sensors'"
         >
-          Sensors Data
+          Clipping Box
         </button>
       </section>
 
@@ -4120,6 +4471,9 @@ watch(
         <p class="muted small">Click and drag any face of the visible box to resize the clipping volume.</p>
         <button class="pill" @click="toggleSensorBoxVisibility">
           {{ sensorBoxVisible ? 'Hide' : 'Show' }} clipping box
+        </button>
+        <button class="pill" @click="debugSensorCaps = !debugSensorCaps">
+          {{ debugSensorCaps ? 'Hide' : 'Show' }} caps debug
         </button>
       </section>
 

@@ -5,8 +5,8 @@ import crypto$1 from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/h3/dist/index.mjs';
 import { escapeHtml } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@vue/shared/dist/shared.cjs.js';
-import { nanoid } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/nanoid/index.js';
-import postgres from 'postgres';
+import { nanoid } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/.pnpm/nanoid@5.1.6/node_modules/nanoid/index.js';
+import postgres from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/.pnpm/postgres@3.4.7/node_modules/postgres/src/index.js';
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/vue-bundle-renderer/dist/runtime.mjs';
 import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file://C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/ufo/dist/index.mjs';
 import process$1 from 'node:process';
@@ -656,9 +656,11 @@ const _inlineRuntimeConfig = {
     "plumbingModel": "/models/House_Plumbing.json",
     "sensorsModel": "/models/House_Sensors.json",
     "landscapeModel": "/models/House_Landscape.json",
-    "adjacentBuildingsModel": "/models/House_AdjacentBuildings.json"
+    "adjacentBuildingsModel": "/models/House_AdjacentBuildings.json",
+    "openWeatherMapApiKey": ""
   },
   "authSecret": "dev-auth-secret-change-me",
+  "authEditorEmail": "marzev@gmail.com",
   "authUsers": [
     {
       "email": "marzev@gmail.com",
@@ -1452,22 +1454,7 @@ const plugins = [
   _qYxMXPFhsXdyEx09HDOktguT_RK7yZFNF2x9pr8iRDY
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"18f60-wJ+V3D+amgIyQVyK2QRpsHADijE\"",
-    "mtime": "2026-01-01T15:01:49.274Z",
-    "size": 102240,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"5ef7f-o05Ga5ILMf8dkzKrBmBZND9pfCM\"",
-    "mtime": "2026-01-01T15:01:49.274Z",
-    "size": 388991,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -2282,6 +2269,14 @@ const requireAuth = (event) => {
   }
   return payload;
 };
+const requireEditor = (event) => {
+  const payload = requireAuth(event);
+  const editorEmail = useRuntimeConfig(event).authEditorEmail;
+  if (!editorEmail || payload.email.toLowerCase() !== editorEmail.toLowerCase()) {
+    throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  }
+  return payload;
+};
 
 const login_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -2456,7 +2451,7 @@ const elementStore = {
 
 const _guid__put = defineEventHandler(async (event) => {
   var _a;
-  requireAuth(event);
+  requireEditor(event);
   const guid = (_a = event.context.params) == null ? void 0 : _a.guid;
   if (!guid) {
     throw createError({ statusCode: 400, statusMessage: "Element guid is required" });
@@ -2486,7 +2481,7 @@ const toSyncInput = (input) => ({
   softwareOriginator: typeof input.softwareOriginator === "string" ? input.softwareOriginator : ""
 });
 const sync_post = defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   const body = await readBody(event);
   if (!(body == null ? void 0 : body.elements) || !Array.isArray(body.elements)) {
     throw createError({ statusCode: 400, statusMessage: "Elements array required" });
@@ -2504,20 +2499,58 @@ const sync_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: sync_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const toItemRecord = (row) => {
-  var _a, _b;
-  return {
-    id: String(row.id),
-    name: row.name || "",
-    description: row.description || "",
-    url: row.url || "",
-    dateAdded: row.date_added || "",
-    rooms: Array.isArray(row.rooms) ? row.rooms : typeof row.rooms === "string" ? JSON.parse(row.rooms) : (_a = row.rooms) != null ? _a : [],
-    position: row.position && typeof row.position === "string" ? JSON.parse(row.position) : (_b = row.position) != null ? _b : { x: 0, y: 0, z: 0 },
-    createdAt: row.created_at ? new Date(row.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
-    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : void 0
-  };
+const fallbackPosition = { x: 0, y: 0, z: 0 };
+const safeJsonParse = (raw, fallback) => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
 };
+const normalizeRoomsArray = (value) => value.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean);
+const parseRoomsValue = (value) => {
+  if (Array.isArray(value)) return normalizeRoomsArray(value);
+  if (typeof value === "string") {
+    const parsed = safeJsonParse(value, []);
+    return Array.isArray(parsed) ? normalizeRoomsArray(parsed) : [];
+  }
+  return [];
+};
+const parsePositionValue = (value) => {
+  const parsed = typeof value === "string" ? safeJsonParse(value, null) : value;
+  if (!parsed || typeof parsed !== "object") return { ...fallbackPosition };
+  const x = parsed.x;
+  const y = parsed.y;
+  const z = parsed.z;
+  const valid = typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y) && typeof z === "number" && Number.isFinite(z);
+  return valid ? { x, y, z } : { ...fallbackPosition };
+};
+const normalizeRoomsInput = (value) => {
+  if (value === void 0) return void 0;
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return null;
+  return normalizeRoomsArray(value);
+};
+const normalizePositionInput = (value) => {
+  if (value === void 0) return void 0;
+  if (!value || typeof value !== "object") return null;
+  const x = value.x;
+  const y = value.y;
+  const z = value.z;
+  const valid = typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y) && typeof z === "number" && Number.isFinite(z);
+  return valid ? { x, y, z } : null;
+};
+
+const toItemRecord = (row) => ({
+  id: String(row.id),
+  name: row.name || "",
+  description: row.description || "",
+  url: row.url || "",
+  dateAdded: row.date_added || "",
+  rooms: parseRoomsValue(row.rooms),
+  position: parsePositionValue(row.position),
+  createdAt: row.created_at ? new Date(row.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+  updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : void 0
+});
 const itemStore = {
   async list() {
     await ensureSchema();
@@ -2574,8 +2607,8 @@ const itemStore = {
         description = COALESCE(${(_b = input.description) != null ? _b : null}, description),
         url = COALESCE(${(_c = input.url) != null ? _c : null}, url),
         date_added = COALESCE(${(_d = input.dateAdded) != null ? _d : null}, date_added),
-        rooms = COALESCE(${input.rooms ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
-        position = COALESCE(${input.position ? JSON.stringify(input.position) : null}::jsonb, position),
+        rooms = COALESCE(${input.rooms !== void 0 ? JSON.stringify(input.rooms) : null}::jsonb, rooms),
+        position = COALESCE(${input.position !== void 0 ? JSON.stringify(input.position) : null}::jsonb, position),
         updated_at = ${(/* @__PURE__ */ new Date()).toISOString()}
       WHERE id = ${id}
       RETURNING *;
@@ -2598,7 +2631,7 @@ const itemStore = {
 
 const _id__delete = defineEventHandler(async (event) => {
   var _a;
-  requireAuth(event);
+  requireEditor(event);
   const id = (_a = event.context.params) == null ? void 0 : _a.id;
   if (!id) {
     throw createError({ statusCode: 400, statusMessage: "Item id is required" });
@@ -2617,20 +2650,48 @@ const _id__delete$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
 
 const _id__put = defineEventHandler(async (event) => {
   var _a;
-  requireAuth(event);
+  requireEditor(event);
   const id = (_a = event.context.params) == null ? void 0 : _a.id;
   const body = await readBody(event);
   if (!body || typeof body !== "object") {
     throw createError({ statusCode: 400, statusMessage: "Invalid payload" });
   }
-  if (body.position) {
-    const coords = body.position;
-    const validCoords = typeof coords.x === "number" && typeof coords.y === "number" && typeof coords.z === "number";
-    if (!validCoords) {
-      throw createError({ statusCode: 400, statusMessage: "Position must include numeric x, y, z" });
+  const update = {};
+  if (body.name !== void 0) {
+    if (typeof body.name !== "string" || !body.name.trim()) {
+      throw createError({ statusCode: 400, statusMessage: "Name must be a non-empty string" });
     }
+    update.name = body.name.trim();
   }
-  const updated = id ? await itemStore.update(id, body) : null;
+  if (body.description !== void 0) {
+    if (typeof body.description !== "string") {
+      throw createError({ statusCode: 400, statusMessage: "Description must be a string" });
+    }
+    update.description = body.description;
+  }
+  if (body.url !== void 0) {
+    if (typeof body.url !== "string") {
+      throw createError({ statusCode: 400, statusMessage: "URL must be a string" });
+    }
+    update.url = body.url;
+  }
+  if (body.dateAdded !== void 0) {
+    if (typeof body.dateAdded !== "string") {
+      throw createError({ statusCode: 400, statusMessage: "Date added must be a string" });
+    }
+    update.dateAdded = body.dateAdded;
+  }
+  const rooms = normalizeRoomsInput(body.rooms);
+  if (rooms === null) {
+    throw createError({ statusCode: 400, statusMessage: "Rooms must be an array of strings" });
+  }
+  if (rooms !== void 0) update.rooms = rooms;
+  const position = normalizePositionInput(body.position);
+  if (body.position !== void 0 && !position) {
+    throw createError({ statusCode: 400, statusMessage: "Position must include numeric x, y, z" });
+  }
+  if (position) update.position = position;
+  const updated = id ? await itemStore.update(id, update) : null;
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: "Item not found" });
   }
@@ -2643,7 +2704,7 @@ const _id__put$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const clear_delete = defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   await itemStore.clear();
   return { cleared: true, count: 0 };
 });
@@ -2665,17 +2726,28 @@ const index_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const index_post = defineEventHandler(async (event) => {
-  requireAuth(event);
+  requireEditor(event);
   const body = await readBody(event);
-  if (!(body == null ? void 0 : body.name) || !body.position) {
-    throw createError({ statusCode: 400, statusMessage: "Name and position required" });
+  const name = typeof (body == null ? void 0 : body.name) === "string" ? body.name.trim() : "";
+  if (!name) {
+    throw createError({ statusCode: 400, statusMessage: "Name is required" });
   }
-  const coords = body.position;
-  const validCoords = coords && typeof coords.x === "number" && typeof coords.y === "number" && typeof coords.z === "number";
-  if (!validCoords) {
+  const position = normalizePositionInput(body == null ? void 0 : body.position);
+  if (!position) {
     throw createError({ statusCode: 400, statusMessage: "Position must include numeric x, y, z" });
   }
-  const record = await itemStore.add(body);
+  const rooms = normalizeRoomsInput(body == null ? void 0 : body.rooms);
+  if (rooms === null) {
+    throw createError({ statusCode: 400, statusMessage: "Rooms must be an array of strings" });
+  }
+  const record = await itemStore.add({
+    name,
+    description: typeof (body == null ? void 0 : body.description) === "string" ? body.description : void 0,
+    url: typeof (body == null ? void 0 : body.url) === "string" ? body.url : void 0,
+    dateAdded: typeof (body == null ? void 0 : body.dateAdded) === "string" ? body.dateAdded : void 0,
+    rooms: rooms != null ? rooms : [],
+    position
+  });
   return { item: record };
 });
 

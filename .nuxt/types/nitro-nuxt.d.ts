@@ -1,7 +1,7 @@
 
 /// <reference path="app.config.d.ts" />
 /// <reference path="runtime-config.d.ts" />
-/// <reference types="C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@nuxt/nitro-server/dist/index.mjs" />
+/// <reference types="C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/.pnpm/@nuxt+nitro-server@3.20.1_d_311b09a123f93d10f6bc61e44f8c7175/node_modules/@nuxt/nitro-server/dist/index.mjs" />
 /// <reference path="nitro-middleware.d.ts" />
 /// <reference path="./schema.d.ts" />
 

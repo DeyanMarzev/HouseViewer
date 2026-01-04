@@ -85,7 +85,11 @@ declare global {
   const itemStore: typeof import('../../server/utils/itemStore').itemStore
   const lazyEventHandler: typeof import('../../node_modules/h3').lazyEventHandler
   const nitroPlugin: typeof import('../../node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
+  const normalizePositionInput: typeof import('../../server/utils/itemParsing').normalizePositionInput
+  const normalizeRoomsInput: typeof import('../../server/utils/itemParsing').normalizeRoomsInput
   const parseCookies: typeof import('../../node_modules/h3').parseCookies
+  const parsePositionValue: typeof import('../../server/utils/itemParsing').parsePositionValue
+  const parseRoomsValue: typeof import('../../server/utils/itemParsing').parseRoomsValue
   const promisifyNodeListener: typeof import('../../node_modules/h3').promisifyNodeListener
   const proxyRequest: typeof import('../../node_modules/h3').proxyRequest
   const readBody: typeof import('../../node_modules/h3').readBody
@@ -95,6 +99,7 @@ declare global {
   const readValidatedBody: typeof import('../../node_modules/h3').readValidatedBody
   const removeResponseHeader: typeof import('../../node_modules/h3').removeResponseHeader
   const requireAuth: typeof import('../../server/utils/auth').requireAuth
+  const requireEditor: typeof import('../../server/utils/auth').requireEditor
   const runTask: typeof import('../../node_modules/nitropack/dist/runtime/internal/task').runTask
   const sanitizeStatusCode: typeof import('../../node_modules/h3').sanitizeStatusCode
   const sanitizeStatusMessage: typeof import('../../node_modules/h3').sanitizeStatusMessage
@@ -132,6 +137,12 @@ declare global {
   const verifyToken: typeof import('../../server/utils/auth').verifyToken
   const writeEarlyHints: typeof import('../../node_modules/h3').writeEarlyHints
 }
+// for type re-export
+declare global {
+  // @ts-ignore
+  export type { ItemPosition } from '../../server/utils/itemParsing.d'
+  import('../../server/utils/itemParsing.d')
+}
 export { useNitroApp } from 'nitropack/runtime/internal/app';
 export { useRuntimeConfig, useAppConfig } from 'nitropack/runtime/internal/config';
 export { defineNitroPlugin, nitroPlugin } from 'nitropack/runtime/internal/plugin';
@@ -146,7 +157,8 @@ export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils'
 export { appendCorsHeaders, appendCorsPreflightHeaders, appendHeader, appendHeaders, appendResponseHeader, appendResponseHeaders, assertMethod, callNodeListener, clearResponseHeaders, clearSession, createApp, createAppEventHandler, createError, createEvent, createEventStream, createRouter, defaultContentType, defineEventHandler, defineLazyEventHandler, defineNodeListener, defineNodeMiddleware, defineRequestMiddleware, defineResponseMiddleware, defineWebSocket, defineWebSocketHandler, deleteCookie, dynamicEventHandler, eventHandler, fetchWithEvent, fromNodeMiddleware, fromPlainHandler, fromWebHandler, getCookie, getHeader, getHeaders, getMethod, getProxyRequestHeaders, getQuery, getRequestFingerprint, getRequestHeader, getRequestHeaders, getRequestHost, getRequestIP, getRequestPath, getRequestProtocol, getRequestURL, getRequestWebStream, getResponseHeader, getResponseHeaders, getResponseStatus, getResponseStatusText, getRouterParam, getRouterParams, getSession, getValidatedQuery, getValidatedRouterParams, handleCacheHeaders, handleCors, isCorsOriginAllowed, isError, isEvent, isEventHandler, isMethod, isPreflightRequest, isStream, isWebResponse, lazyEventHandler, parseCookies, promisifyNodeListener, proxyRequest, readBody, readFormData, readMultipartFormData, readRawBody, readValidatedBody, removeResponseHeader, sanitizeStatusCode, sanitizeStatusMessage, sealSession, send, sendError, sendIterable, sendNoContent, sendProxy, sendRedirect, sendStream, sendWebResponse, serveStatic, setCookie, setHeader, setHeaders, setResponseHeader, setResponseHeaders, setResponseStatus, splitCookiesString, toEventHandler, toNodeListener, toPlainHandler, toWebHandler, toWebRequest, unsealSession, updateSession, useBase, useSession, writeEarlyHints } from 'h3';
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
-export { createToken, verifyToken, requireAuth } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/auth';
+export { createToken, verifyToken, requireAuth, requireEditor } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/auth';
 export { getSql, ensureSchema } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/db';
 export { elementStore } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/elementStore';
+export { parseRoomsValue, parsePositionValue, normalizeRoomsInput, normalizePositionInput } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/itemParsing';
 export { itemStore } from 'C:/Users/deyan.marzev/source/repos/DeyanTestProject/HouseViewer/server/utils/itemStore';

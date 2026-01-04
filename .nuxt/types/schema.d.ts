@@ -49,6 +49,8 @@ declare module 'nuxt/schema' {
 
    authSecret: string,
 
+   authEditorEmail: string,
+
    authUsers: Array<{
 
    }>,
@@ -69,6 +71,8 @@ declare module 'nuxt/schema' {
    landscapeModel: string,
 
    adjacentBuildingsModel: string,
+
+   openWeatherMapApiKey: string,
   }
 }
 declare module 'vue' {
